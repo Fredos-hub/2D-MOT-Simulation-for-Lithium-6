@@ -11,7 +11,7 @@ Framework to simulate behavior of ⁶Li atoms in a two-dimensional magneto-optic
 
 ## Description
 
-This project provides a framework for simulating the behavior of lithium-6 (⁶Li) atoms in a two-dimensional magneto-optical trap (2D MOT). It includes a graphical user interface (GUI) for interactive control and visualization of simulations.
+This project provides a framework for simulating the behavior of lithium-6 (⁶Li) atoms in a two-dimensional magneto-optical trap (2D MOT). It includes a graphical user interface (GUI) for simulation configuration and controls.
 
 ## Requirements & Supported Python
 
@@ -47,4 +47,3 @@ If you want to add features, tests, or documentation, please work on the `develo
 
 This project is published under the **GNU General Public License v3.0 (GPL-3.0)**. See the included `LICENSE` file for the full license text and terms.
 
-You may also include an SPDX short identifier where appropriate: `SPDX-License-Identifier: GPL-3.0-or-later`.
