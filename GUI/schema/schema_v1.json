@@ -1,0 +1,301 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MOT Simulation Configuration (with defaults)",
+  "type": "object",
+  "required": [
+    "Atoms",
+    "Magnetic_Fields",
+    "Lasers",
+    "Boundaries",
+    "Simulation"
+  ],
+  "properties": {
+    "Atoms": {
+      "type": "object",
+      "default": {
+        "species": "Li6",
+        "number": 5000,
+        "start_position": [0.0, -0.02, 0.0],
+        "start_velocity": [0.0, 50.0, 0.0],
+        "natural_linewidth": 5.87,
+        "ground_state": 0,
+        "randomize_ground_state": true,
+        "sample_file": "starting condition samples/623K Oven.csv"
+      },
+      "required": [
+        "species",
+        "number",
+        "start_position",
+        "start_velocity",
+        "ground_state",
+        "randomize_ground_state"
+      ],
+      "properties": {
+        "species": { "type": "string", "default": "Li6" },
+        "number": { "type": "integer", "minimum": 1, "default": 5000 },
+        "start_position": { "$ref": "#/definitions/vector3", "default": [0.0, -0.02, 0.0] },
+        "start_velocity": { "$ref": "#/definitions/vector3", "default": [0.0, 50.0, 0.0] },
+        "natural_linewidth": { "type": "number", "minimum": 0, "default": 5.87 },
+        "ground_state": { "type": "integer", "minimum": 0, "default": 0 },
+        "randomize_ground_state": { "type": "boolean", "default": true },
+        "sample_file": { "type": "string", "default": "starting condition samples/623K Oven.csv" }
+      },
+      "additionalProperties": false
+    },
+
+    "Magnetic_Fields": {
+      "type": "object",
+      "default": {
+        "type": "DipoleBarMagneticField",
+        "center_offset": [-3.8, 3.4, 0.0],
+        "g_y": -0.385,
+        "g_x": 0.685,
+        "theta_deg": 47.0,
+        "dipoles": [
+          {
+            "position": [0.042, 0.0, 0.021],
+            "dimension": [0.025, 0.009, 0.01],
+            "orientation": [0.0, -1.0, 0.0],
+            "magnetization": 880000.0000000001
+          },
+          {
+            "position": [0.042, 0.0, -0.021],
+            "dimension": [0.025, 0.009, 0.01],
+            "orientation": [0.0, -1.0, 0.0],
+            "magnetization": 880000.0000000001
+          },
+          {
+            "position": [-0.042, 0.0, 0.021],
+            "dimension": [0.025, 0.009, 0.01],
+            "orientation": [0.0, 1.0, 0.0],
+            "magnetization": 880000.0000000001
+          },
+          {
+            "position": [-0.042, 0.0, -0.021],
+            "dimension": [0.025, 0.009, 0.01],
+            "orientation": [0.0, 1.0, 0.0],
+            "magnetization": 880000.0000000001
+          }
+        ]
+      },
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string" }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "DipoleBarMagneticField" },
+            "center_offset": { "$ref": "#/definitions/vector3" },
+            "g_y": { "type": "number" },
+            "g_x": { "type": "number" },
+            "theta_deg": { "type": "number" },
+            "dipoles": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["position", "dimension", "orientation", "magnetization"],
+                "properties": {
+                  "position": { "$ref": "#/definitions/vector3" },
+                  "dimension": { "$ref": "#/definitions/vector3" },
+                  "orientation": { "$ref": "#/definitions/vector3" },
+                  "magnetization": { "type": "number" }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["type", "center_offset", "g_y", "g_x", "theta_deg", "dipoles"],
+          "additionalProperties": false
+        },
+
+        {
+          "properties": {
+            "type": { "const": "IdealQuadropoleField" },
+            "field_gradient": { "type": "number" }
+          },
+          "required": ["type", "field_gradient"],
+          "additionalProperties": false
+        },
+
+        {
+          "properties": {
+            "type": { "const": "ZeemanField" },
+            "slower_length": { "type": "number", "minimum": 0 },
+            "B_0": { "type": "number" },
+            "B_Bias": { "type": "number" },
+            "delta_B": { "type": "number" }
+          },
+          "required": ["type"],
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "Lasers": {
+      "type": "array",
+      "default": [
+        {
+          "waist": 0.009,
+          "origin": [0.25, 0.25, 0.0],
+          "direction": [-1.0, -1.0, 0.0],
+          "beam_power": 0.05,
+          "beam_frequency": 446799571.079,
+          "detuning": -7.5,
+          "handedness": 1,
+          "type": "trap"
+        },
+        {
+          "waist": 0.009,
+          "origin": [-0.25, -0.25, 0.0],
+          "direction": [1.0, 1.0, 0.0],
+          "beam_power": 0.05,
+          "beam_frequency": 446799571.079,
+          "detuning": -7.5,
+          "handedness": 1,
+          "type": "trap"
+        },
+        {
+          "waist": 0.009,
+          "origin": [-0.25, 0.25, 0.0],
+          "direction": [1.0, -1.0, 0.0],
+          "beam_power": 0.05,
+          "beam_frequency": 446799571.079,
+          "detuning": -7.5,
+          "handedness": -1,
+          "type": "trap"
+        },
+        {
+          "waist": 0.009,
+          "origin": [0.25, -0.25, 0.0],
+          "direction": [-1.0, 1.0, 0.0],
+          "beam_power": 0.05,
+          "beam_frequency": 446799571.079,
+          "detuning": -7.5,
+          "handedness": -1,
+          "type": "trap"
+        },
+        {
+          "waist": 0.009,
+          "origin": [0.25, 0.25, 0.0],
+          "direction": [-1.0, -1.0, 0.0],
+          "beam_power": 0.048,
+          "beam_frequency": 446799802.175,
+          "detuning": -1.0,
+          "handedness": 1,
+          "type": "repump"
+        },
+        {
+          "waist": 0.009,
+          "origin": [-0.25, 0.25, 0.0],
+          "direction": [1.0, -1.0, 0.0],
+          "beam_power": 0.048,
+          "beam_frequency": 446799802.175,
+          "detuning": -1.0,
+          "handedness": -1,
+          "type": "repump"
+        },
+        {
+          "waist": 0.009,
+          "origin": [-0.25, -0.25, 0.0],
+          "direction": [1.0, 1.0, 0.0],
+          "beam_power": 0.048,
+          "beam_frequency": 446799802.175,
+          "detuning": -1.0,
+          "handedness": 1,
+          "type": "repump"
+        },
+        {
+          "waist": 0.009,
+          "origin": [0.25, -0.25, 0.0],
+          "direction": [-1.0, 1.0, 0.0],
+          "beam_power": 0.048,
+          "beam_frequency": 446799802.175,
+          "detuning": -1.0,
+          "handedness": -1,
+          "type": "repump"
+        }
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "waist",
+          "origin",
+          "direction",
+          "beam_power",
+          "beam_frequency",
+          "detuning",
+          "handedness"
+        ],
+        "properties": {
+          "type": { "type": "string", "enum": ["trap", "repump", "other"], "default": "trap" },
+          "waist": { "type": "number", "minimum": 0, "default": 0.009 },
+          "origin": { "$ref": "#/definitions/vector3", "default": [0.25, 0.25, 0.0] },
+          "direction": { "$ref": "#/definitions/vector3", "default": [-1.0, -1.0, 0.0] },
+          "beam_power": { "type": "number", "minimum": 0, "default": 0.05 },
+          "beam_frequency": { "type": "number", "minimum": 0, "default": 446799571.079 },
+          "detuning": { "type": "number", "default": -7.5 },
+          "handedness": { "type": "integer", "enum": [-1, 1], "default": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "Boundaries": {
+      "type": "array",
+      "default": [],
+      "items": { "type": "object" }
+    },
+
+    "Simulation": {
+      "type": "object",
+      "default": {
+        "interaction": "Lithium18LevelInteraction",
+        "step_resolution": 1,
+        "max_live_time": 4.0,
+        "random_seed": 15,
+        "rate_mode": false,
+        "flux": 6.7,
+        "macro_particle_weight": 2000,
+        "default_time_step": 10.0
+      },
+      "required": [
+        "interaction",
+        "step_resolution",
+        "max_live_time",
+        "random_seed",
+        "rate_mode",
+        "flux",
+        "macro_particle_weight",
+        "default_time_step"
+      ],
+      "properties": {
+        "interaction": { "type": "string", "default": "Lithium18LevelInteraction" },
+        "step_resolution": { "type": "integer", "minimum": 1, "default": 1 },
+        "max_live_time": { "type": "number", "minimum": 0, "default": 4.0 },
+        "random_seed": { "type": "integer", "default": 15 },
+        "rate_mode": { "type": "boolean", "default": false },
+        "flux": { "type": "number", "minimum": 0, "default": 6.7 },
+        "macro_particle_weight": { "type": "number", "minimum": 1, "default": 2000 },
+        "default_time_step": { "type": "number", "minimum": 0, "default": 10.0 },
+        "step_mode": { "type": "string" },
+        "step_limit": { "type": "integer", "minimum": 1 },
+        "max_step_number": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+
+  "definitions": {
+    "vector3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "type": "number" }
+    }
+  },
+
+  "additionalProperties": false
+}

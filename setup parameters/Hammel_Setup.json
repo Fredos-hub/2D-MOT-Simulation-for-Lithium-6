@@ -1,0 +1,262 @@
+{
+    "Atoms": {
+        "species": "Li6",
+        "number": 5000,
+        "start_position": [
+            0.0,
+            -0.02,
+            0.0
+        ],
+        "start_velocity": [
+            0.0,
+            50.0,
+            0.0
+        ],
+        "natural_linewidth": 5.87,
+        "ground_state": 0,
+        "randomize_ground_state": true,
+        "sample_file": "starting condition samples/553K Oven.csv"
+    },
+    "Magnetic_Fields": {
+        "type": "DipoleBarMagneticField",
+        "center_offset": [
+            -3.8,
+            3.4,
+            0.0
+        ],
+        "g_y": -0.385,
+        "g_x": 0.685,
+        "theta_deg": 47.0,
+        "dipoles": [
+            {
+                "position": [
+                    0.042,
+                    0.0,
+                    0.021
+                ],
+                "dimension": [
+                    0.025,
+                    0.009,
+                    0.01
+                ],
+                "orientation": [
+                    0.0,
+                    -1.0,
+                    0.0
+                ],
+                "magnetization": 880000.0000000001
+            },
+            {
+                "position": [
+                    0.042,
+                    0.0,
+                    -0.021
+                ],
+                "dimension": [
+                    0.025,
+                    0.009,
+                    0.01
+                ],
+                "orientation": [
+                    0.0,
+                    -1.0,
+                    0.0
+                ],
+                "magnetization": 880000.0000000001
+            },
+            {
+                "position": [
+                    -0.042,
+                    0.0,
+                    0.021
+                ],
+                "dimension": [
+                    0.025,
+                    0.009,
+                    0.01
+                ],
+                "orientation": [
+                    0.0,
+                    1.0,
+                    0.0
+                ],
+                "magnetization": 880000.0000000001
+            },
+            {
+                "position": [
+                    -0.042,
+                    0.0,
+                    -0.021
+                ],
+                "dimension": [
+                    0.025,
+                    0.009,
+                    0.01
+                ],
+                "orientation": [
+                    0.0,
+                    1.0,
+                    0.0
+                ],
+                "magnetization": 880000.0000000001
+            }
+        ]
+    },
+    "Lasers": [
+        {
+            "waist": 0.0156,
+            "origin": [
+                0.25,
+                0.25,
+                0.0
+            ],
+            "direction": [
+                -1.0,
+                -1.0,
+                0.0
+            ],
+            "beam_power": 0.12,
+            "beam_frequency": 446799571.079,
+            "detuning": -8.0,
+            "handedness": 1,
+            "type": "trap"
+        },
+        {
+            "waist": 0.0156,
+            "origin": [
+                -0.25,
+                -0.25,
+                0.0
+            ],
+            "direction": [
+                1.0,
+                1.0,
+                0.0
+            ],
+            "beam_power": 0.12,
+            "beam_frequency": 446799571.079,
+            "detuning": -8.0,
+            "handedness": 1,
+            "type": "trap"
+        },
+        {
+            "waist": 0.0156,
+            "origin": [
+                -0.25,
+                0.25,
+                0.0
+            ],
+            "direction": [
+                1.0,
+                -1.0,
+                0.0
+            ],
+            "beam_power": 0.12,
+            "beam_frequency": 446799571.079,
+            "detuning": -8.0,
+            "handedness": -1,
+            "type": "trap"
+        },
+        {
+            "waist": 0.0156,
+            "origin": [
+                0.25,
+                -0.25,
+                0.0
+            ],
+            "direction": [
+                -1.0,
+                1.0,
+                0.0
+            ],
+            "beam_power": 0.12,
+            "beam_frequency": 446799571.079,
+            "detuning": -8.0,
+            "handedness": -1,
+            "type": "trap"
+        },
+        {
+            "waist": 0.0156,
+            "origin": [
+                0.25,
+                0.25,
+                0.0
+            ],
+            "direction": [
+                -1.0,
+                -1.0,
+                0.0
+            ],
+            "beam_power": 0.08,
+            "beam_frequency": 446799802.175,
+            "detuning": -3.0,
+            "handedness": 1,
+            "type": "repump"
+        },
+        {
+            "waist": 0.0156,
+            "origin": [
+                -0.25,
+                0.25,
+                0.0
+            ],
+            "direction": [
+                1.0,
+                -1.0,
+                0.0
+            ],
+            "beam_power": 0.08,
+            "beam_frequency": 446799802.175,
+            "detuning": -3.0,
+            "handedness": -1,
+            "type": "repump"
+        },
+        {
+            "waist": 0.0156,
+            "origin": [
+                -0.25,
+                -0.25,
+                0.0
+            ],
+            "direction": [
+                1.0,
+                1.0,
+                0.0
+            ],
+            "beam_power": 0.08,
+            "beam_frequency": 446799802.175,
+            "detuning": -3.0,
+            "handedness": 1,
+            "type": "repump"
+        },
+        {
+            "waist": 0.0156,
+            "origin": [
+                0.25,
+                -0.25,
+                0.0
+            ],
+            "direction": [
+                -1.0,
+                1.0,
+                0.0
+            ],
+            "beam_power": 0.08,
+            "beam_frequency": 446799802.175,
+            "detuning": -3.0,
+            "handedness": -1,
+            "type": "repump"
+        }
+    ],
+    "Boundaries": [],
+    "Simulation": {
+        "interaction": "Lithium18LevelInteraction",
+        "step_resolution": 1,
+        "max_live_time": 3.0,
+        "random_seed": 15,
+        "rate_mode": false,
+        "flux": 6.7,
+        "macro_particle_weight": 2000,
+        "default_time_step": 10.0
+    }
+}
