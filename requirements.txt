@@ -1,0 +1,8 @@
+numpy
+scipy
+numba
+matplotlib
+pandas
+pyqt5
+tqdm
+jsonschema>=4.0.0
