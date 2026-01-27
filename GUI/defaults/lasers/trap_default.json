@@ -1,0 +1,18 @@
+{
+  "waist": 0.009,
+  "origin": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "direction": [
+    0,
+    0.0,
+    0.0
+  ],
+  "beam_power": 0.05,
+  "beam_frequency": 446799571.079,
+  "detuning": -7.5,
+  "handedness": -1,
+  "type": "trap"
+}

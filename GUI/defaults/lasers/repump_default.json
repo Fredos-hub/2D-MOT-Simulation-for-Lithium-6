@@ -1,0 +1,10 @@
+{
+    "waist": 0.009,
+    "origin": [0, 0, 0.0],
+    "direction": [0, 0.0, 0.0],
+    "beam_power": 0.048,
+    "beam_frequency": 446799802.175,
+    "detuning": -1.0,
+    "handedness": 1,
+    "type": "repump"
+}

@@ -246,9 +246,9 @@
 
     "Boundaries": {
       "type": "object",
-      "default": {"x_limit": 0.0,
-                  "y_limit": 0.0,
-                  "z_limit":0.0},
+      "default": {"x_limit": 30.0,
+                  "y_limit": 30.0,
+                  "z_limit": 30.0},
       "required": [
         "x_limit",
         "y_limit",

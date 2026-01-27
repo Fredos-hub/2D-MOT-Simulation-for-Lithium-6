@@ -1,11 +1,13 @@
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
-    QTableWidgetItem, QComboBox, QMessageBox, QHeaderView, QSizePolicy
+    QTableWidgetItem, QComboBox, QMessageBox, QHeaderView, QSizePolicy, QFrame, QLabel
 )
 from PyQt5.QtCore import Qt
 from GUI.widgets.vector_input_widget import VectorInputWidget
 from GUI.widgets.edit_all_popup_widget import EditAllPopup
-
+from GUI.widgets.edit_defaults_popup_widget import EditDefaultsPopup
+from pathlib import Path
+import json
 
 class LasersSettingsTab(QWidget):
     """
@@ -13,7 +15,7 @@ class LasersSettingsTab(QWidget):
     according to the provided JSON schema for Lasers.
     """
     TYPE_OPTIONS = ["unspecified", "repump", "trap"]
-    HELICITY_OPTIONS = ["-1", "+1"]
+    HELICITY_OPTIONS = ["-1","0", "+1"]
 
     def __init__(self, model=None, parent=None):
         super().__init__(parent)
@@ -31,17 +33,53 @@ class LasersSettingsTab(QWidget):
         # Left panel buttons
         panel = QWidget()
         panelLayout = QVBoxLayout(panel)
-        for text, slot in [
-            ("Add Trapping Laser", lambda: self._add_new_laser('trap')),
-            ("Add Repump Laser", lambda: self._add_new_laser('repump')),
-            ("Add Lasers from Preset", lambda: self._add_new_laser(None)),
-            ("Save Configuration as Preset", self._save_preset_if_needed),
-            ("Edit Laser Defaults", self._edit_defaults),
-            ("Edit All Selected", self._edit_all_selected)
-        ]:
-            btn = QPushButton(text)
-            btn.clicked.connect(slot)
-            panelLayout.addWidget(btn)
+
+        # Edit defaults button
+        edit_defaults_btn = QPushButton("Edit Laser Defaults")
+        edit_defaults_btn.clicked.connect(self._edit_defaults)
+        panelLayout.addWidget(edit_defaults_btn)
+
+        # Separator under Edit defaults
+        sep1 = QFrame()
+        sep1.setFrameShape(QFrame.HLine)
+        sep1.setFrameShadow(QFrame.Sunken)
+        panelLayout.addWidget(sep1)
+
+        # Add/remove buttons
+        add_trap_btn = QPushButton("Add Trapping Laser")
+        add_trap_btn.clicked.connect(lambda: self._add_new_laser('trap'))
+        panelLayout.addWidget(add_trap_btn)
+
+        add_repump_btn = QPushButton("Add Repump Laser")
+        add_repump_btn.clicked.connect(lambda: self._add_new_laser('repump'))
+        panelLayout.addWidget(add_repump_btn)
+
+        remove_btn = QPushButton("Remove Selected Laser")
+        remove_btn.clicked.connect(lambda: self._remove_selected())
+        panelLayout.addWidget(remove_btn)
+
+        # Separator under Remove Selected
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setFrameShadow(QFrame.Sunken)
+        panelLayout.addWidget(sep2)
+
+        # Edit all selected
+        edit_all_btn = QPushButton("Edit All Selected")
+        edit_all_btn.clicked.connect(self._edit_all_selected)
+        panelLayout.addWidget(edit_all_btn)
+
+        # Separator under Edit All Selected
+        sep3 = QFrame()
+        sep3.setFrameShape(QFrame.HLine)
+        sep3.setFrameShadow(QFrame.Sunken)
+        panelLayout.addWidget(sep3)
+
+        # Handedness help text (consistent with table label)
+        handedness_label = QLabel("Handedness: \n|  -1 → RH  |  0 → LIN  |  +1 → LH  |")
+        handedness_label.setWordWrap(True)
+        panelLayout.addWidget(handedness_label)
+
         panelLayout.addStretch()
         panel.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
 
@@ -55,8 +93,6 @@ class LasersSettingsTab(QWidget):
         header.setSectionResizeMode(QHeaderView.Interactive)
         self.table.verticalHeader().setDefaultSectionSize(40)
         self.table.horizontalHeader().setDefaultSectionSize(140)
-
-
 
         # Assemble layout
         layout.addWidget(panel)
@@ -139,15 +175,20 @@ class LasersSettingsTab(QWidget):
                 lst[row][info['key']] = val
                 self._model.set(lst, 'Lasers')
 
-    def _add_new_laser(self, kind):
-        if not self._model: return
-        defaults = self._model.get('Lasers_defaults', {}) or {}
-        cfg = {**defaults, 'type': kind or defaults.get('type', 'unspecified')}
-        lst = list(self._model.get('Lasers', default=[]) or [])
-        lst.append(cfg)
-        self._model.set(lst, 'Lasers')
-        self.setModel(self._model)
 
+    def _remove_selected(self):
+        """Remove the currently highlighted dipole row."""
+        if not self._model:
+            return
+        row = self.table.currentRow()
+        if row < 0:
+            QMessageBox.warning(self, "Remove Laser", "No row selected to remove.")
+            return
+        lst = list(self._model.get('Lasers', default=[]) or [])
+        if 0 <= row < len(lst):
+            lst.pop(row)
+            self._model.set(lst, 'Lasers')
+            self.setModel(self._model)
 
     def _update_model(self, rowIndex, keyName, value):
         """Update a specific property on one laser and mark dirty"""
@@ -166,8 +207,45 @@ class LasersSettingsTab(QWidget):
         pass
 
     # Placeholder slots
-    def _save_preset_if_needed(self): pass
-    def _edit_defaults(self): pass
+    def _edit_defaults(self): 
+        self.popup = EditDefaultsPopup(self)
+        self.popup.show()
+        pass
+
+    
+    def _add_new_laser(self, kind):
+        """
+        Add a new laser using defaults. Prefer JSON defaults files if present,
+        otherwise fall back to model-provided defaults (Lasers_defaults).
+        """
+        if not self._model:
+            return
+
+        # Try to load defaults from GUI/defaults/lasers/<kind>_default.json
+        file_defaults = {}
+        try:
+            # assumes this file lives in GUI/widgets/<thisfile>.py -> go up to GUI then defaults/lasers
+            defaults_dir = Path(__file__).resolve().parents[1] / 'defaults' / 'lasers'
+            fname = f"{kind}_default.json"
+            p = defaults_dir / fname
+            if p.exists():
+                with p.open('r', encoding='utf-8') as f:
+                    file_defaults = json.load(f)
+        except Exception:
+            # ignore errors and fall back to model defaults
+            file_defaults = {}
+
+        # fallback to model-supplied defaults
+        model_defaults = self._model.get('Lasers_defaults', {}) or {}
+
+        # prefer file defaults if available, otherwise use model defaults
+        defaults = file_defaults or model_defaults
+
+        cfg = {**defaults, 'type': kind or defaults.get('type', 'unspecified')}
+        lst = list(self._model.get('Lasers', default=[]) or [])
+        lst.append(cfg)
+        self._model.set(lst, 'Lasers')
+        self.setModel(self._model)
 
 if __name__ == "__main__":
     pass
