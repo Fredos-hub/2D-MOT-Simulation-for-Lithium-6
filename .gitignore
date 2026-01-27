@@ -1,4 +1,6 @@
 .vscode
 .venv/
 *gif
+simulation_results/
+*pyc
 
