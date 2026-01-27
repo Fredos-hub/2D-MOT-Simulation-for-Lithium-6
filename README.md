@@ -2,12 +2,8 @@
 
 Framework to simulate behavior of ⁶Li atoms in a two-dimensional magneto-optical trap (2D MOT).
 
-## Branches
-
-* **main** — immutable snapshot of the repository at the time the Master’s thesis was handed in. This branch reflects the exact code, configuration and results included in the submission.
-* **develop** — active development branch intended for ongoing improvements (GUI, features, tests, documentation).
-
----
+## Releases
+The original state of the Simulation as of the end of the work on the Thesis is documented under the tag "original-state"
 
 ## Description
 
@@ -37,11 +33,11 @@ This will launch the interactive application. Make sure you are running the comm
 ## Command-line Interface (CLI)
 
 * Running simulations through CLI commands is **currently not supported**.
-* The primary entry point for now is the GUI. CLI support may be added in a future update on the `develop` branch.
+* The primary entry point for now is the GUI. CLI support may be added in a future update.
 
 ## Contributing
 
-If you want to add features, tests, or documentation, please work on the `develop` branch and open a pull request when ready.
+If you want to add features, tests, or documentation, please contact me under frederic@staudt.werkhaeuser.de
 
 ## License
 
