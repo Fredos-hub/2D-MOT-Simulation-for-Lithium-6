@@ -2,5 +2,8 @@
 .venv/
 *gif
 simulation_results/
-*pyc
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
