@@ -352,6 +352,9 @@ class SimulationCockpit(QWidget):
 
 
     def create_new_file(self):
+
+        self._check_unsaved()
+
         # 1) Ensure a directory is set
         if not self.opened_directory:
             dir_choice = QFileDialog.getExistingDirectory(
@@ -402,9 +405,22 @@ class SimulationCockpit(QWidget):
             QMessageBox.critical(self, "Error", f"Could not write file:\n{e}")
             return
 
-        # 6) Log and refresh
-        self.loggingField.appendPlainText(f"Createdirty: {new_path}")
+        # 6a) Create FileModel for the newly created file and register signals
+        new_name = os.path.basename(new_path)
+        model = FileModel(new_path)
+        # wire up the same callbacks as for copied/loaded files:
+        model.dirtyChanged.connect(lambda dirty, filename=new_name: self.fileTable.updateStatus(filename, dirty))
+        model.dirtyChanged.connect(lambda dirty, filename=new_name: self._on_model_dirty(filename, dirty))
+        model.dirtyChanged.connect(self.fileDirtyChanged)
+        model.mark_clean()
+        self.models[new_name] = model
+
+        # 6b) Log and refresh UI
+        self.loggingField.appendPlainText(f"Created: {new_path}")
         self.fileTable.refresh_table()
+        # ensure the new row shows the right status (clean)
+        self.fileTable.updateStatus(new_name, model.is_dirty())
+
 
     def save_file(self):
         row = self.fileTable.table.currentRow()
@@ -461,22 +477,13 @@ class SimulationCockpit(QWidget):
         return
 
 
+
     def run_simulation_from_file_table(self):
         if self.simulation_running_flag:
             QMessageBox.warning(self, "Simulation", "Simulation already running.")
             return
 
-        # Save or discard unsaved changes
-        dirty = [n for n,m in self.models.items() if m.is_dirty()]
-        if dirty:
-            resp = QMessageBox.question(
-                self, f"Unsaved Changes in {len(dirty)} files.",
-                "Save all changes?", QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
-            )
-            if resp == QMessageBox.Cancel:
-                return
-            if resp == QMessageBox.Save:
-                self.save_all()
+        self._check_unsaved()
 
         # Build queue of filenames
         tbl = self.fileTable.table
@@ -577,6 +584,19 @@ class SimulationCockpit(QWidget):
         print(message)
 
 
+    def _check_unsaved(self):
+        # Save or discard unsaved changes
+        dirty = [n for n,m in self.models.items() if m.is_dirty()]
+        if dirty:
+            resp = QMessageBox.question(
+                self, f"Unsaved Changes in {len(dirty)} files.",
+                "Save all changes?", QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+            )
+            if resp == QMessageBox.Cancel:
+                return
+            if resp == QMessageBox.Save:
+                self.save_all()
+
 
     def _on_model_dirty(self, filename, dirty):
         """
@@ -617,4 +637,7 @@ class SimulationCockpit(QWidget):
         # 4) refresh UI
         self.fileTable.refresh_table()
         self.fileTable.updateStatus(copy_name, model.is_dirty())
+
+
+
                 
