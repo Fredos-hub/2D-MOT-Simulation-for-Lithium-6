@@ -433,92 +433,6 @@ def determine_deexcitation_transition(branching_probs: np.ndarray) -> Tuple[int,
 
 
 
-@njit
-def calculate_small_wigner_d_matrix_elements(polarization: int, angle_laser_magnetic_field: float) -> np.ndarray:
-    """
-    Calculate the squared small Wigner d-matrix elements for a spin-1 photon state projection.
-
-    This function projects the polarization state of a laser beam onto the quantization
-    axis defined by the magnetic field. The input 'polarization' indicates the initial
-    polarization state:
-      - 0 for sigma-,
-      - 1 for pi,
-      - 2 for sigma+.
-
-    The 'angle_laser_magnetic_field' is the angle (in radians) between the laser propagation
-    direction and the magnetic field direction.
-
-    Parameters
-    ----------
-    polarization : int
-        The index representing the initial polarization state:
-        0 for sigma-, 1 for pi, and 2 for sigma+.
-    angle_laser_magnetic_field : float
-        The angle (in radians) between the laser propagation direction and the magnetic field
-        (quantization axis).
-
-    Returns
-    -------
-    projected_polarizations : numpy.ndarray
-        A 1D array of length 3 containing the squared amplitudes (i.e., intensity fractions) for
-        the projected components in the order [sigma-, pi, sigma+].
-
-    Notes
-    -----
-    The squared amplitudes are obtained by squaring the small Wigner d-matrix elements for j=1.
-    For example, for an initial sigma+ state (polarization 2), the projections are:
-      - sigma-: (sin(angle/2)**2)**2,
-      - pi:      (-sin(angle)/sqrt(2))**2,
-      - sigma+: (cos(angle/2)**2)**2.
-    """
-    # Initialize an array to store the projected intensities
-    projected_polarizations = np.zeros(3, dtype=np.float64)
-
-
-    if polarization == 0:
-        # For sigma- polarization (initial state):
-        # d_{-1,-1} = cos(angle/2)**2  --> Squared: (cos(angle/2)**2)**2
-        projected_polarizations[0] = (math.cos(angle_laser_magnetic_field/2)**2)**2
-        
-        # d_{0,-1} = -sin(angle)/sqrt(2)  --> Squared: (-sin(angle)/sqrt(2))**2
-        projected_polarizations[1] = (-math.sin(angle_laser_magnetic_field) / math.sqrt(2))**2
-        
-        # d_{+1,-1} = sin(angle/2)**2  --> Squared: (sin(angle/2)**2)**2
-        projected_polarizations[2] = (math.sin(angle_laser_magnetic_field/2)**2)**2
-        
-        return projected_polarizations
-    
-    if polarization == 1:
-        # For pi polarization (initial state):
-        # d_{-1,0} = -sin(angle)/sqrt(2)  --> Squared: (-sin(angle)/sqrt(2))**2
-        projected_polarizations[0] = (-math.sin(angle_laser_magnetic_field) / math.sqrt(2))**2
-        
-        # d_{0,0} = cos(angle)  --> Squared: (cos(angle))**2
-        projected_polarizations[1] = (math.cos(angle_laser_magnetic_field))**2
-        
-        # d_{+1,0} = sin(angle)/sqrt(2)  --> Squared: (sin(angle)/sqrt(2))**2
-        projected_polarizations[2] = (math.sin(angle_laser_magnetic_field) / math.sqrt(2))**2
-        
-        return projected_polarizations
-    
-    if polarization == 2:
-        # For sigma+ polarization (initial state):
-        # d_{-1,+1} = sin(angle/2)**2  --> Squared: (sin(angle/2)**2)**2
-        projected_polarizations[0] = (math.sin(angle_laser_magnetic_field/2)**2)**2
-        
-        # d_{0,+1} = -sin(angle)/sqrt(2)  --> Squared: (-sin(angle)/sqrt(2))**2
-        projected_polarizations[1] = (-math.sin(angle_laser_magnetic_field) / math.sqrt(2))**2
-        
-        # d_{+1,+1} = cos(angle/2)**2  --> Squared: (cos(angle/2)**2)**2
-        projected_polarizations[2] = (math.cos(angle_laser_magnetic_field/2)**2)**2
-        
-        return projected_polarizations
-    
-
-
-
-
-
 
 @njit
 def calculate_handedness_to_polarization(angle_laser_magnetic_field: float, 
@@ -553,55 +467,10 @@ def calculate_handedness_to_polarization(angle_laser_magnetic_field: float,
         projected_polarizations[1] = 1/2 * math.sin(angle_laser_magnetic_field)**2
         projected_polarizations[2] = 1/4 * (1 - math.cos(angle_laser_magnetic_field))**2
 
+    elif handedness == 0:
+        #(linear)
+        projected_polarizations[0] = -1/2 * math.sin(angle_laser_magnetic_field)**2
+        projected_polarizations[1] = math.cos(angle_laser_magnetic_field)**2
+        projected_polarizations[2] = 1/2 * math.sin(angle_laser_magnetic_field)**2
+
     return projected_polarizations
-
-
-
-@njit
-def make_lab_polarization(k_hat: np.ndarray, handedness: int):
-    # pick two orthonormal transverse axes (u,v) ⟂ k_hat
-    # for simplicity, start with u = arbitrary ⟂ k_hat, then v = k_hat × u
-    tmp = np.array([1.0, 0.0, 0.0])
-    if abs(np.dot(tmp, k_hat)) > 0.9:
-        tmp = np.array([0.0, 1.0, 0.0])
-    u = np.cross(k_hat, tmp)
-    u /= np.linalg.norm(u)
-    v = np.cross(k_hat, u)
-    # now RH: (u + i v)/√2, LH: (u - i v)/√2
-    if handedness == +1:
-        return -(u + 1j*v) / np.sqrt(2)   # right‑handed
-    else:
-        return +(u - 1j*v) / np.sqrt(2)   # left‑handed
-
-
-@njit
-def decompose_into_sigma_components(k_hat: np.ndarray,
-                                    handedness: int,
-                                    B_hat: np.ndarray):
-    # 1) build eps_lab from (k_hat,handedness)
-    eps_lab = make_lab_polarization(k_hat, handedness)
-
-    # 2) same basis construction as before
-    tmp = np.array([1.0, 0.0, 0.0])
-    if abs(np.dot(tmp, B_hat)) > 0.9:
-        tmp = np.array([0.0, 1.0, 0.0])
-    e1 = np.cross(B_hat, tmp)
-    e1 /= np.linalg.norm(e1)
-    e2 = np.cross(B_hat, e1)
-
-    # 3) project eps_lab onto that basis *manually* to avoid mixed‐dtype dot
-    eps1 = eps_lab[0]*e1[0] + eps_lab[1]*e1[1] + eps_lab[2]*e1[2]
-    eps2 = eps_lab[0]*e2[0] + eps_lab[1]*e2[1] + eps_lab[2]*e2[2]
-    eps3 = eps_lab[0]*B_hat[0] + eps_lab[1]*B_hat[1] + eps_lab[2]*B_hat[2]
-
-    # 4) form the Δm amplitudes
-    amp_minus1 =  ( eps1 - 1j*eps2) / np.sqrt(2)   # σ⁻ (Δm=−1)
-    amp_plus1  = -( eps1 + 1j*eps2) / np.sqrt(2)   # σ⁺ (Δm=+1)
-    amp_0      =  eps3                            # π   (Δm=0)
-
-    return np.array([
-        np.abs(amp_minus1)**2,
-        np.abs(amp_0)**2,
-        np.abs(amp_plus1)**2
-    ])
-
