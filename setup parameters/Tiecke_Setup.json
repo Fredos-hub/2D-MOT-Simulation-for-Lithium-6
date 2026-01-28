@@ -19,11 +19,7 @@
     },
     "Magnetic_Fields": {
         "type": "DipoleBarMagneticField",
-        "center_offset": [
-            -3.8,
-            3.4,
-            0.0
-        ],
+        "center_offset": [],
         "g_y": -0.385,
         "g_x": 0.685,
         "theta_deg": 47.0,
@@ -172,7 +168,7 @@
             "beam_power": 0.05,
             "beam_frequency": 446799571.079,
             "detuning": -7.5,
-            "handedness": -1,
+            "handedness": -1.5,
             "type": "trap"
         },
         {
