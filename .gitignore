@@ -1,9 +1,10 @@
 .vscode
 .venv/
-*gif
+*.gif
 simulation_results/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
+LICENSE.txt
+*.md
