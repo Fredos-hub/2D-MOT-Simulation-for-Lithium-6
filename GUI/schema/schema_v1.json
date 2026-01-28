@@ -44,46 +44,31 @@
     },
 
     "Magnetic_Fields": {
-      "type": "object",
-      "default": {
-        "type": "DipoleBarMagneticField",
-        "center_offset": [-3.8, 3.4, 0.0],
-        "g_y": -0.385,
-        "g_x": 0.685,
-        "theta_deg": 47.0,
-        "dipoles": [
-          {
-            "position": [0.042, 0.0, 0.021],
-            "dimension": [0.025, 0.009, 0.01],
-            "orientation": [0.0, -1.0, 0.0],
-            "magnetization": 880000.0000000001
-          },
-          {
-            "position": [0.042, 0.0, -0.021],
-            "dimension": [0.025, 0.009, 0.01],
-            "orientation": [0.0, -1.0, 0.0],
-            "magnetization": 880000.0000000001
-          },
-          {
-            "position": [-0.042, 0.0, 0.021],
-            "dimension": [0.025, 0.009, 0.01],
-            "orientation": [0.0, 1.0, 0.0],
-            "magnetization": 880000.0000000001
-          },
-          {
-            "position": [-0.042, 0.0, -0.021],
-            "dimension": [0.025, 0.009, 0.01],
-            "orientation": [0.0, 1.0, 0.0],
-            "magnetization": 880000.0000000001
-          }
-        ]
-      },
-      "required": ["type"],
-      "properties": {
-        "type": { "type": "string" }
-      },
-      "oneOf": [
+    "type": "object",
+    "default": {
+      "type": "DipoleBarMagneticField",
+      "center_offset": [0, 0, 0.0],
+      "g_y": -0.5,
+      "g_x": 0.5,
+      "theta_deg": 45.0,
+      "dipoles": [
         {
+          "position": [0.042, 0.0, 0.021],
+          "dimension": [0.025, 0.009, 0.01],
+          "orientation": [0.0, -1.0, 0.0],
+          "magnetization": 880000.0
+        }
+      ]
+    },
+    "required": ["type"],
+    "properties": {
+      "type": { "type": "string" }
+    },
+    "allOf": [
+      {
+        "if": { "properties": { "type": { "const": "DipoleBarMagneticField" } } },
+        "then": {
+          "type": "object",
           "properties": {
             "type": { "const": "DipoleBarMagneticField" },
             "center_offset": { "$ref": "#/definitions/vector3" },
@@ -108,31 +93,59 @@
           },
           "required": ["type", "center_offset", "g_y", "g_x", "theta_deg", "dipoles"],
           "additionalProperties": false
-        },
+        }
+      },
 
-        {
+      {
+        "if": { "properties": { "type": { "const": "IdealQuadrupoleField" } } },
+        "then": {
+          "type": "object",
           "properties": {
             "type": { "const": "IdealQuadrupoleField" },
+            "center_offset": { "$ref": "#/definitions/vector3" },
             "field_gradient": { "type": "number" }
           },
           "required": ["type", "field_gradient"],
           "additionalProperties": false
-        },
+        }
+      },
 
-        {
+      {
+        "if": { "properties": { "type": { "const": "ZeemanField" } } },
+        "then": {
+          "type": "object",
           "properties": {
             "type": { "const": "ZeemanField" },
             "slower_length": { "type": "number", "minimum": 0 },
             "B_0": { "type": "number" },
             "B_Bias": { "type": "number" },
+            "B_bias": { "type": "number" },           
             "delta_B": { "type": "number" },
             "delta_B_min": { "type": "number" }
           },
           "required": ["type"],
           "additionalProperties": false
         }
-      ]
-    },
+      },
+
+      {
+        "if": { "properties": { "type": { "const": "EllipticalMagneticField" } } },
+        "then": {
+          "type": "object",
+          "properties": {
+            "type": { "const": "EllipticalMagneticField" },
+            "center_offset": { "$ref": "#/definitions/vector3" },
+            "g_x": { "type": "number" },
+            "g_y": { "type": "number" },
+            "theta_deg": { "type": "number" }
+          },
+          "required": ["type", "g_x", "g_y", "theta_deg"],
+          "additionalProperties": false
+        }
+      }
+    ]
+  }
+  ,
 
     "Lasers": {
       "type": "array",
@@ -238,7 +251,7 @@
           "beam_power": { "type": "number", "minimum": 0, "default": 0.05 },
           "beam_frequency": { "type": "number", "minimum": 0, "default": 446799571.079 },
           "detuning": { "type": "number", "default": -7.5 },
-          "handedness": { "type": "integer", "enum": [-1, 1], "default": 1 }
+          "handedness": { "type": "integer", "enum": [-1,0, 1], "default": 1 }
         },
         "additionalProperties": false
       }

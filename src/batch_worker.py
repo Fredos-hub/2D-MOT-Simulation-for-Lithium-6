@@ -1,7 +1,7 @@
 import os
 import time
 from PyQt5.QtCore import QThread, pyqtSignal
-from src.parameters import Parameters
+from src.parameters import Parameters, ParameterError
 import re
 import json
 import time
@@ -272,12 +272,51 @@ class BatchSimulationWorker(QThread):
 
             # 1) Build simulation
             self.statusChanged.emit(f"---------------Building {filename} ({idx+1}/{total_files})------------------")
-            params = Parameters(os.path.join(self.directory, filename))
-            sim = params.build_simulation(status_callback=self.statusChanged.emit)
 
-            # 2) Compile/warmup
+            params = Parameters(os.path.join(self.directory, filename), status_callback=self.statusChanged.emit)
+
+            if not params.is_valid():
+                # single GUI message referencing the errors and then full listing once
+                self.statusChanged.emit(f"Configuration invalid: {len(params.get_errors())} error(s). See details below.")
+                self.statusChanged.emit("---- Validation errors ----\n" + "\n".join(params.get_errors()))
+                # optionally save the invalid config for inspection
+                if run_folder is not None and isinstance(params.parameters, dict):
+                    try:
+                        cfg_path = os.path.join(run_folder, "config_invalid.json")
+                        with open(cfg_path, "w", encoding="utf-8") as cfgfh:
+                            json.dump(params.parameters, cfgfh, indent=2)
+                    except Exception:
+                        pass
+                self.fileFinished.emit(filename)
+                continue
+
+            # params is valid, attempt to build simulation once
+            try:
+                sim = params.build_simulation()
+            except ParameterError as exc:
+                # build_simulation reports runtime/fatal construction issues here
+                msg = f"Failed to build simulation: {exc}"
+                # include parsing warnings if any
+                if params.get_errors():
+                    msg += "\nWarnings:\n" + "\n".join(params.get_errors())
+                self.statusChanged.emit(msg)
+                self.fileFinished.emit(filename)
+                continue
+
+            # at this point sim exists and is safe to use
             self.statusChanged.emit("Compiling... (this may take a couple of minutes)")
-            sim.warmup()
+            try:
+                sim.warmup()
+            except Exception as e:
+                self.statusChanged.emit(f"Warmup failed: {e}")
+                # ensure final cleanup
+                try:
+                    sim.finalize()
+                except Exception:
+                    pass
+                self.fileFinished.emit(filename)
+                continue
+
             self.statusChanged.emit("Starting simulation...")
 
             total_steps = sim.max_step_number

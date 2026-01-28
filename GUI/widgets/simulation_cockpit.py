@@ -6,8 +6,8 @@ from PyQt5.QtWidgets import (
     QLabel, QPlainTextEdit, QProgressBar,QGroupBox, 
     QFileDialog, QInputDialog, QMessageBox,QSizePolicy, QStyledItemDelegate
 )
-from PyQt5.QtCore import Qt, pyqtSignal,QTimer
-
+from PyQt5.QtCore import Qt, pyqtSignal,QTimer, QRegularExpression
+from PyQt5.QtGui import QColor, QTextCursor, QSyntaxHighlighter, QTextCharFormat, QFont
 from GUI.widgets.file_table import FileTableWidget
 from GUI.widgets.settings_tabs import SettingsTabsWidget
 from GUI.file_model import FileModel
@@ -18,7 +18,69 @@ schema_version = 1
 
 SCHEMA_PATH = os.path.join('GUI/schema', f'schema_v{str(schema_version)}.json')
 
+class LogHighlighter(QSyntaxHighlighter):
+    """
+    Highlight log lines:
+      - ERROR:  -> red + bold
+      - WARNING: -> orange + bold
+      - lines containing 'Building' -> green + bold + pale background (stands out)
+    """
+    def __init__(self, document):
+        super().__init__(document)
 
+        # error format (red + bold)
+        self.error_format = QTextCharFormat()
+        self.error_format.setForeground(QColor("red"))
+        self.error_format.setFontWeight(QFont.Bold)
+
+        # warning format (orange + bold)
+        self.warning_format = QTextCharFormat()
+        self.warning_format.setForeground(QColor("orange"))
+        self.warning_format.setFontWeight(QFont.Bold)
+
+        # building format (green + bold + pale background)
+        self.building_format = QTextCharFormat()
+        self.building_format.setForeground(QColor(0, 100, 0))  # dark green
+        self.building_format.setFontWeight(QFont.Bold)
+        # pale green background to make it stand out
+        self.building_format.setBackground(QColor(225, 245, 225))
+
+        # Regexes
+        # whole-line ERROR/WARNING
+        self.error_re = QRegularExpression(r'^(ERROR:.*)$')
+        self.warning_re = QRegularExpression(r'^(WARNING:.*)$')
+        # any line containing the word "Building" (case-sensitive to match your log)
+        # matches strings like "---------------Building Tiecke_Setup.json (1/2)------------------"
+        self.building_re = QRegularExpression(r'.*\bBuilding\b.*')
+
+    def highlightBlock(self, text: str) -> None:
+        # If it's a building line, highlight it first (so it visibly stands out).
+        # This also avoids the "ERROR" style overriding the building style if both occurred.
+        itb = self.building_re.globalMatch(text)
+        while itb.hasNext():
+            m = itb.next()
+            start = m.capturedStart(0)
+            length = m.capturedLength(0)
+            if start >= 0 and length > 0:
+                self.setFormat(start, length, self.building_format)
+
+        # apply error formatting
+        it = self.error_re.globalMatch(text)
+        while it.hasNext():
+            m = it.next()
+            start = m.capturedStart(1)
+            length = m.capturedLength(1)
+            if start >= 0 and length > 0:
+                self.setFormat(start, length, self.error_format)
+
+        # apply warning formatting
+        it2 = self.warning_re.globalMatch(text)
+        while it2.hasNext():
+            m = it2.next()
+            start = m.capturedStart(1)
+            length = m.capturedLength(1)
+            if start >= 0 and length > 0:
+                self.setFormat(start, length, self.warning_format)
 
 class AlignDelegate(QStyledItemDelegate):
     def initStyleOption(self, option, index):
@@ -82,6 +144,9 @@ class SimulationCockpit(QWidget):
         main_layout.addWidget(self.progressBar)
         self.statusLabel = QLabel("Status: Not started")
         main_layout.addWidget(self.statusLabel)
+
+        # attach syntax highlighter to colour ERROR: / WARNING:
+        self.log_highlighter = LogHighlighter(self.loggingField.document())
 
         # File-table signals
         self.fileTable.fileSelected.connect(self._on_file_selected)
@@ -525,10 +590,6 @@ class SimulationCockpit(QWidget):
             self.batch_worker.deleteLater()
             self.batch_worker = None
 
-    def handleStatusUpdate(self, status):
-        self.statusLabel.setText(status)
-        if not status.startswith("Processing step"):
-            self.loggingField.appendPlainText(status)
 
     def startCompilationAnimation(self):
         # If an animation timer already exists, try to stop and delete it.
@@ -566,21 +627,36 @@ class SimulationCockpit(QWidget):
             self.compilingTimer = None
 
     def handleStatusUpdate(self, status):
-        # Only stop the compilation animation if we receive a clear signal
-        # that compilation is finished, e.g., when the status is "Starting simulation..."
+        # Start/stop compilation animation
         if status == "Simulation instance created":
             self.startCompilationAnimation()
         if status == "Starting simulation...":
             self.stopCompilationAnimation()
+
+        # Update status label
         self.statusLabel.setText(status)
+
+        # If this is a "building" line, insert a separator for visibility
+        # and always append it to the log (even if it's a short "Processing step" line).
+        is_building = "Building" in status
+
+        if is_building:
+            # blank line for separation (so each build stands out)
+            self.loggingField.appendPlainText("")  
+
+        # keep skipping frequent "Processing step" lines
         if not status.startswith("Processing step"):
             self.loggingField.appendPlainText(status)
+
+        # auto-scroll to bottom for visibility
+        v = self.loggingField.verticalScrollBar()
+        v.setValue(v.maximum())
 
 
     def logMessage(self, message: str):
         """Append a message to the log box and optionally print to console."""
         if hasattr(self, 'loggingField') and self.loggingField is not None:
-            self.loggingField.appendPlainText("\n" + message)
+            self.loggingField.appendPlainText(message)
         print(message)
 
 
