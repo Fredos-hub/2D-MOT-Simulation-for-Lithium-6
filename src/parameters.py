@@ -40,7 +40,7 @@ from src.magnetic_field import (
 )
 from src.simulate import Simulation
 import src.atoms as atoms
-from src.experimental_setup import LaserComponent
+from src.lasers import LaserComponent
 from util.simulation_typing import ECSAtoms, LightAtomInteraction
 
 
