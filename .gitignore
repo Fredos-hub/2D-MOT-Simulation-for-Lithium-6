@@ -8,3 +8,5 @@ __pycache__/
 *.pyd
 LICENSE.txt
 *.md
+find_transition_strengths.py
+plots.py

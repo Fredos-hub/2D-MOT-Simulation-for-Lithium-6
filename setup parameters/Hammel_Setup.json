@@ -108,12 +108,12 @@
             "origin": [
                 0.25,
                 0.25,
-                -0.006171
+                0.0
             ],
             "direction": [
                 -1.0,
                 -1.0,
-                0.0246
+                0.0
             ],
             "beam_power": 0.12,
             "beam_frequency": 446799571.079,
@@ -126,12 +126,12 @@
             "origin": [
                 -0.25,
                 -0.25,
-                -0.006171
+                0.0
             ],
             "direction": [
                 1.0,
                 1.0,
-                0.0246
+                0.0
             ],
             "beam_power": 0.12,
             "beam_frequency": 446799571.079,
@@ -144,12 +144,12 @@
             "origin": [
                 -0.25,
                 0.25,
-                -0.006171
+                0.0
             ],
             "direction": [
                 1.0,
                 -1.0,
-                0.0246
+                0.0
             ],
             "beam_power": 0.12,
             "beam_frequency": 446799571.079,
@@ -162,12 +162,12 @@
             "origin": [
                 0.25,
                 -0.25,
-                -0.006171
+                0.0
             ],
             "direction": [
                 -1.0,
                 1.0,
-                0.0246
+                0.0
             ],
             "beam_power": 0.12,
             "beam_frequency": 446799571.079,
@@ -180,12 +180,12 @@
             "origin": [
                 0.25,
                 0.25,
-                -0.006171
+                0.0
             ],
             "direction": [
                 -1.0,
                 -1.0,
-                0.0246
+                0.0
             ],
             "beam_power": 0.08,
             "beam_frequency": 446799802.175,
@@ -198,12 +198,12 @@
             "origin": [
                 -0.25,
                 0.25,
-                -0.006171
+                0.0
             ],
             "direction": [
                 1.0,
                 -1.0,
-                0.0246
+                0.0
             ],
             "beam_power": 0.08,
             "beam_frequency": 446799802.175,
@@ -216,17 +216,17 @@
             "origin": [
                 -0.25,
                 -0.25,
-                -0.006171
+                0.0
             ],
             "direction": [
                 1.0,
                 1.0,
-                0.0246
+                0.0
             ],
             "beam_power": 0.08,
             "beam_frequency": 446799802.175,
             "detuning": -5.0,
-            "handedness": -1,
+            "handedness": 1,
             "type": "repump"
         },
         {
@@ -234,17 +234,17 @@
             "origin": [
                 0.25,
                 -0.25,
-                -0.006171
+                0.0
             ],
             "direction": [
                 -1.0,
                 1.0,
-                0.0246
+                0.0
             ],
             "beam_power": 0.08,
             "beam_frequency": 446799802.175,
             "detuning": -5.0,
-            "handedness": 1,
+            "handedness": -1,
             "type": "repump"
         }
     ],
@@ -254,7 +254,7 @@
         "z_limit": 27.0
     },
     "Simulation": {
-        "interaction": "Lithium18LevelInteraction",
+        "interaction": "Lithium6LevelInteraction",
         "step_resolution": 1,
         "max_live_time": 4.0,
         "random_seed": 15,

@@ -19,7 +19,7 @@
     },
     "Magnetic_Fields": {
         "type": "DipoleBarMagneticField",
-        "center_offset": [],
+        "center_offset": [0,0,0],
         "g_y": -0.385,
         "g_x": 0.685,
         "theta_deg": 47.0,
@@ -168,7 +168,7 @@
             "beam_power": 0.05,
             "beam_frequency": 446799571.079,
             "detuning": -7.5,
-            "handedness": -1.5,
+            "handedness": -1,
             "type": "trap"
         },
         {
@@ -246,7 +246,7 @@
     ],
     "Boundaries": {
         "x_limit": 27.0,
-        "y_limit": 710.0,
+        "y_limit": 27.0,
         "z_limit": 27.0
     },
     "Simulation": {
