@@ -15,6 +15,8 @@ class BatchSimulationWorker(QThread):
     statusChanged = pyqtSignal(str)
     fileFinished = pyqtSignal(str)
     finished = pyqtSignal()
+    fileStarted = pyqtSignal(str, int)    # filename, total_steps
+
 
     def __init__(self, directory: str, file_names: list, parent=None, buffer_size: int = 10000):
         super().__init__(parent)
@@ -34,7 +36,7 @@ class BatchSimulationWorker(QThread):
         self.run_buffer_size = buffer_size  # flush threshold
 
 
-        # -----------------------
+    # -----------------------
     # filesystem helper funcs
     # -----------------------
     def ensure_batch_root_and_folder(self):
@@ -271,10 +273,13 @@ class BatchSimulationWorker(QThread):
                 run_folder = None
 
             # 1) Build simulation
+
+
             self.statusChanged.emit(f"---------------Building {filename} ({idx+1}/{total_files})------------------")
 
             params = Parameters(os.path.join(self.directory, filename), status_callback=self.statusChanged.emit)
-
+            self.fileStarted.emit(filename, params.max_step_number)
+            # TODO: Consider moving to loading of the files.
             if not params.is_valid():
                 # single GUI message referencing the errors and then full listing once
                 self.statusChanged.emit(f"Configuration invalid: {len(params.get_errors())} error(s). See details below.")

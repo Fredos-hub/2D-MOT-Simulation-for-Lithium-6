@@ -1,28 +1,15 @@
 """
-Refactored Parameters loader and simulation builder.
+Parameters loader and simulation builder.
 
 Purpose
 -------
-This module provides a Parameters class that performs three distinct tasks
+This module provides a Parameters class that performs three tasks
 in sequence. First, the JSON configuration file is validated against a JSON
 schema to ensure required keys and types are present. Second, the validated
 configuration is parsed into a compact set of Python attributes and
 structures suitable for construction of simulation objects. Third, a Simulation
 instance is created while guarding against runtime problems such as missing
 classes, constructor changes, or I/O errors.
-
-Design principles
------------------
-- Validation-first: schema validation rejects malformed input early and
-  produces a complete list of validation messages. Defaults from the schema
-  are not injected automatically.
-- Parsing is minimal and assumes schema-mandated keys exist and have the
-  correct types. Parsing therefore contains little defensive code.
-- Construction of runtime objects is defensive. Nonfatal problems are logged
-  to `self.errors` and emitted through `status_callback`. Fatal problems raise
-  exceptions that the caller can catch and present to an operator or GUI.
-- The class is intended to be used by a GUI or automation script that wants
-  clear error reporting and robust build semantics.
 
 Usage
 -----
