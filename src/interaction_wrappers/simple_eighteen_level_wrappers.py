@@ -12,48 +12,38 @@ import scipy.constants as scc
 import math
 
 @njit
-def _calculate_transition_frequency_shift(
-                                          ground_state: int, 
-                                          excited_state: int, 
-                                          magnetic_field_strength: float,
- 
+def _calculate_transition_frequency_shift(magnetic_field_strength: float,
                                           mu_B: float, 
-                                          ground_mJ: float, 
-                                          excited_mJ: float):
+                                          ground_mF: float, 
+                                          excited_mF: float,
+                                          g_ground: float,
+                                          g_excited: float):
 
 
-    # Landé g-factors: S1/2 (g = 2) and P3/2 (g = 4/3)
-    g_s = 2.0
-    g_p = 4.0 / 3.0
-
-    E_excited = g_p * mu_B * excited_mJ[excited_state] * magnetic_field_strength
-    E_ground = g_s * mu_B * ground_mJ[ground_state] * magnetic_field_strength
-    #print("frequency_shift: allowed transition")
-
-    return (E_excited - E_ground)/scc.h -76.6e6
+    # Landé g-factors:
+    g_ground = g_ground
+    g_excited = g_excited
 
 
 
+    E_excited = g_excited * mu_B * excited_mF * magnetic_field_strength
+    E_ground = g_ground * mu_B * ground_mF * magnetic_field_strength
 
-@njit
-def _is_transition_allowed(polarization: int, 
-                           ground_state: int, 
-                           excited_state: int, 
-                           allowed_transitions: np.ndarray):
-    
-    for i in range(allowed_transitions.shape[0]):
-        if (allowed_transitions[i, 0] == ground_state and
-            allowed_transitions[i, 1] == excited_state and
-            allowed_transitions[i, 2] == polarization):
-            return True
-    return False
+    # Account for HFS shifts by adding or substracting the zero field shift.
+    if g_ground >0 : # Relates to F = 1/2 ground state
+        return (E_excited - E_ground)/scc.h -76.7e6
+    elif g_ground < 0: # Relates to F = 3/2 ground state
+        return (E_excited - E_ground)/scc.h + 151.3e6
+
 
 
 @njit
 def _calculate_excitation_rate(saturation_parameters,
-                   total_saturation_parameter,
-                   natural_linewidth,
-                   excitation_rates):
+                            total_saturation_parameter,
+                            natural_linewidth,
+                            excitation_rates):
+    
+    
     n_lasers = excitation_rates.shape[0]
     n_excited = excitation_rates.shape[1]
     for j in range(n_lasers):
@@ -61,6 +51,8 @@ def _calculate_excitation_rate(saturation_parameters,
             for pol in range(3):
                 sat = saturation_parameters[j, ex, pol]
                 excitation_rates[j, ex, pol] = (0.5* sat * natural_linewidth) / (1.0 + total_saturation_parameter)
+
+
 
 @njit
 def _calculate_saturation_parameter(effective_transition_frequency: float, # in Hz
