@@ -110,7 +110,7 @@ class Lithium6LevelInteraction:
                                     detuning: float):
     
         
-        transition_strength = self.branch_table[ground_state][excited_state][polarization]
+        transition_strength = self.branch_table[excited_state][ground_state][polarization]
         saturation_parameter = slw._calculate_saturation_parameter(laser_intensity = laser_intensity,
                                                                    natural_linewidth=natural_linewidth,
                                                                    transition_strength=transition_strength,

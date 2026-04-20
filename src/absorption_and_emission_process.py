@@ -102,6 +102,7 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                     else:
                         dot = b_vec[0] * lasers.normalized_directions[j][0] + b_vec[1] * lasers.normalized_directions[j][1] + b_vec[2] * lasers.normalized_directions[j][2]
                         cosval = dot / b_norm
+                        # numerical safety for acos
                         if cosval > 1.0:
                             cosval = 1.0
                         elif cosval < -1.0:

@@ -254,7 +254,7 @@
         "z_limit": 27.0
     },
     "Simulation": {
-        "interaction": "Lithium18LevelInteraction",
+        "interaction": "SimpleEighteenLevelInteraction",
         "step_resolution": 1,
         "max_live_time": 4.0,
         "random_seed": 15,
