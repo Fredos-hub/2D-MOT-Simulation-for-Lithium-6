@@ -8,3 +8,4 @@ __pycache__/
 *.pyd
 find_transition_strengths.py
 plots.py
+.json
