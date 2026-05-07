@@ -9,4 +9,5 @@ __pycache__/
 find_transition_strengths.py
 plots.py
 .json
+.csv
 CLAUDE.md
