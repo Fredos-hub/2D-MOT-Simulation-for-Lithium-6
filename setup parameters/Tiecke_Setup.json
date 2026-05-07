@@ -19,7 +19,11 @@
     },
     "Magnetic_Fields": {
         "type": "DipoleBarMagneticField",
-        "center_offset": [0,0,0],
+        "center_offset": [
+            0,
+            0,
+            0
+        ],
         "g_y": -0.385,
         "g_x": 0.685,
         "theta_deg": 47.0,
@@ -247,12 +251,12 @@
     "Boundaries": {
         "x_limit": 27.0,
         "y_limit": 27.0,
-        "z_limit": 27.0
+        "z_limit": 1.0
     },
     "Simulation": {
         "interaction": "Lithium18LevelInteraction",
         "step_resolution": 1,
-        "max_live_time": 4.0,
+        "simulated_time": 4.0,
         "random_seed": 15,
         "rate_mode": false,
         "flux": 6.7,

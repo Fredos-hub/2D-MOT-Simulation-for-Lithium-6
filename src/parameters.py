@@ -144,7 +144,7 @@ class Parameters:
         # simulation fields
         self.default_time_step: Optional[np.float64] = None
         self.step_resolution: Optional[int] = None
-        self.max_live_time: Optional[float] = None
+        self.simulated_time: Optional[float] = None
         self.max_step_number: Optional[int] = None
         self.interaction: Optional[str] = None
         self.seed: Optional[int] = None
@@ -256,8 +256,8 @@ class Parameters:
         sim = self.parameters["Simulation"]
         self.default_time_step = np.float64(sim["default_time_step"] * 1e-6)
         self.step_resolution = int(sim["step_resolution"])
-        self.max_live_time = float(sim["max_live_time"] * 1e-3)
-        self.max_step_number = round(self.max_live_time / self.default_time_step)
+        self.simulated_time = float(sim["simulated_time"] * 1e-3)
+        self.max_step_number = round(self.simulated_time / self.default_time_step)
         self.interaction = sim["interaction"]
         self.seed = int(sim["random_seed"])
         self.flux = float(sim["flux"] * 1e9)
@@ -432,7 +432,7 @@ class Parameters:
                 simulation_interaction=simulation_interaction,
                 max_step_number=self.max_step_number,
                 step_resolution=self.step_resolution,
-                max_live_time=self.max_live_time + simulation_atoms.subjective_time[0],
+                simulated_time=self.simulated_time,
                 boundaries=self.boundaries,
                 default_timestep=self.default_time_step,
             )
@@ -470,7 +470,7 @@ class Parameters:
                 while True:
                     dt = rng.exponential(1.0 / rate)
                     t += dt
-                    if t > self.max_live_time:
+                    if t > self.simulated_time:
                         break
                     times.append(t)
                 return len(times), np.array(times, dtype=np.float64)
@@ -493,7 +493,7 @@ class Parameters:
             while True:
                 dt = rng.exponential(1.0 / rate)
                 t += dt
-                if t > self.max_live_time:
+                if t > self.simulated_time:
                     break
                 times.append(t)
             return len(times), np.array(times, dtype=np.float64)

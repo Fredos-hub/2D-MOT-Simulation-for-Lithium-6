@@ -15,7 +15,7 @@ class Simulation():
                  simulation_interaction: LightAtomInteraction, 
                  max_step_number: int,
                  step_resolution: int,
-                 max_live_time: float, 
+                 simulated_time: float,
                  boundaries: np.ndarray,
                  default_timestep: float = 1e-5,
                  voxel_size: float = 1e-5,
@@ -31,8 +31,7 @@ class Simulation():
         # procedural simulation parameters
         self.max_step_number = max_step_number
         self.current_step = 0
-        #FIXME: Rename self.max_live_time to self.total_simulation_time and max_live_time to simulated time
-        self.max_live_time = max_live_time
+        self.simulated_time = simulated_time
         self.step_resolution = step_resolution
         self.default_timestep = default_timestep
         self.voxel_size = voxel_size

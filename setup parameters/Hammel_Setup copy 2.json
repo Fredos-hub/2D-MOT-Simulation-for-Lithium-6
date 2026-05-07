@@ -256,7 +256,7 @@
     "Simulation": {
         "interaction": "Lithium6LevelInteraction",
         "step_resolution": 1,
-        "max_live_time": 4.0,
+        "simulated_time": 4.0,
         "random_seed": 15,
         "rate_mode": false,
         "flux": 6.7,

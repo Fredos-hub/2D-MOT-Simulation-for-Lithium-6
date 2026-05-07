@@ -397,7 +397,7 @@ class BatchSimulationWorker(QThread):
                             minimal = {
                                 "max_step_number": getattr(params, "max_step_number", None),
                                 "step_resolution": getattr(params, "step_resolution", None),
-                                "max_live_time": getattr(params, "max_live_time", None),
+                                "simulated_time": getattr(params, "simulated_time", None),
                                 "atom_number": getattr(params, "atom_number", None),
                                 "lasers": getattr(params, "lasers", None),
                                 "magnetic_field_type": getattr(params, "magnetic_field_type", None)

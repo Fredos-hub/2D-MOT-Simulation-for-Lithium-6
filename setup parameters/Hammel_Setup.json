@@ -1,7 +1,7 @@
 {
     "Atoms": {
         "species": "Li6",
-        "number": 5000,
+        "number": 20,
         "start_position": [
             0.0,
             -0.02,
@@ -256,7 +256,7 @@
     "Simulation": {
         "interaction": "Lithium18LevelInteraction",
         "step_resolution": 1,
-        "max_live_time": 4.0,
+        "simulated_time": 4.0,
         "random_seed": 15,
         "rate_mode": false,
         "flux": 6.7,

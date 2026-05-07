@@ -20,6 +20,7 @@
         "natural_linewidth": 5.87,
         "ground_state": 0,
         "randomize_ground_state": true,
+        "sample_style": "oven",
         "sample_file": "starting condition samples/623K Oven.csv"
       },
       "required": [
@@ -38,6 +39,11 @@
         "natural_linewidth": { "type": "number", "minimum": 0, "default": 5.87 },
         "ground_state": { "type": "integer", "minimum": 0, "default": 0 },
         "randomize_ground_state": { "type": "boolean", "default": true },
+        "sample_style": {
+          "type": "string",
+          "enum": ["oven", "snapshot"],
+          "default": "oven"
+        },
         "sample_file": { "type": "string", "default": "starting condition samples/623K Oven.csv" }
       },
       "additionalProperties": false
@@ -244,7 +250,7 @@
           "handedness"
         ],
         "properties": {
-          "type": { "type": "string", "enum": ["trap", "repump", "other"], "default": "trap" },
+          "type": { "type": "string", "enum": ["trap", "repump", "unspecified"], "default": "trap" },
           "waist": { "type": "number", "minimum": 0, "default": 0.009 },
           "origin": { "$ref": "#/definitions/vector3", "default": [0.25, 0.25, 0.0] },
           "direction": { "$ref": "#/definitions/vector3", "default": [-1.0, -1.0, 0.0] },
@@ -273,7 +279,7 @@
       "default": {
         "interaction": "Lithium18LevelInteraction",
         "step_resolution": 1,
-        "max_live_time": 4.0,
+        "simulated_time": 4.0,
         "random_seed": 15,
         "rate_mode": false,
         "flux": 6.7,
@@ -283,7 +289,7 @@
       "required": [
         "interaction",
         "step_resolution",
-        "max_live_time",
+        "simulated_time",
         "random_seed",
         "rate_mode",
         "flux",
@@ -293,7 +299,7 @@
       "properties": {
         "interaction": { "type": "string", "default": "Lithium18LevelInteraction" },
         "step_resolution": { "type": "integer", "minimum": 1, "default": 1 },
-        "max_live_time": { "type": "number", "minimum": 0, "default": 4.0 },
+        "simulated_time": { "type": "number", "minimum": 0, "default": 4.0 },
         "random_seed": { "type": "integer", "default": 15 },
         "rate_mode": { "type": "boolean", "default": false },
         "flux": { "type": "number", "minimum": 0, "default": 6.7 },

@@ -46,7 +46,7 @@ class SimulationSettingsTab(QWidget):
         self.maxTimeSpin.setRange(0.0, 1e6)
         self.maxTimeSpin.setDecimals(1)
         self.maxTimeSpin.setMaximumWidth(284)
-        layout.addRow("Max Live Time (ms):", self.maxTimeSpin)
+        layout.addRow("Simulated Time (ms):", self.maxTimeSpin)
 
         # Random Seed
         self.seed_spin = QSpinBox()
@@ -109,7 +109,7 @@ class SimulationSettingsTab(QWidget):
         self.resolutionSpin.valueChanged.connect(lambda v: self._update_model('step_resolution', v))
 
         # Connect Signals for the Maximum Simulation Time SpinBox
-        self.maxTimeSpin.valueChanged.connect(lambda v: self._update_model('max_live_time', v))
+        self.maxTimeSpin.valueChanged.connect(lambda v: self._update_model('simulated_time', v))
         self.maxTimeSpin.valueChanged.connect(self._estimate_atom_count)
 
 
@@ -154,7 +154,7 @@ class SimulationSettingsTab(QWidget):
 
             self.resolutionSpin.setValue(model.safe_get('Simulation', 'step_resolution', default=10))
 
-            self.maxTimeSpin.setValue(model.safe_get('Simulation', 'max_live_time', default=3))
+            self.maxTimeSpin.setValue(model.safe_get('Simulation', 'simulated_time', default=3))
 
 
             seed = model.safe_get("Simulation", "random_seed", default = 0)

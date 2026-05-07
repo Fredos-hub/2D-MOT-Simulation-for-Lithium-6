@@ -53,7 +53,7 @@
     "Simulation": {
         "interaction": "SimpleEighteenLevelInteraction",
         "step_resolution": 1,
-        "max_live_time": 9.0,
+        "simulated_time": 9.0,
         "random_seed": 10,
         "rate_mode": false,
         "flux": 3.0,

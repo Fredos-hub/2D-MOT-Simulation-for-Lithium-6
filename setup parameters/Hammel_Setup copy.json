@@ -15,7 +15,8 @@
         "natural_linewidth": 5.87,
         "ground_state": 0,
         "randomize_ground_state": true,
-        "sample_file": "starting condition samples/553K Oven.csv"
+        "sample_file": "starting condition samples/Wrong_MOT_1_99_ms.csv",
+        "sample_style": "snapshot"
     },
     "Magnetic_Fields": {
         "type": "DipoleBarMagneticField",
@@ -246,17 +247,35 @@
             "detuning": -5.0,
             "handedness": 1,
             "type": "repump"
+        },
+        {
+            "waist": 0.009,
+            "origin": [
+                0.0,
+                0.0,
+                -1.0
+            ],
+            "direction": [
+                0.0,
+                0.0,
+                1.0
+            ],
+            "beam_power": 0.005,
+            "beam_frequency": 446799571.079,
+            "detuning": -7.5,
+            "handedness": 0,
+            "type": "unspecified"
         }
     ],
     "Boundaries": {
         "x_limit": 27.0,
-        "y_limit": 28.0,
+        "y_limit": 27.0,
         "z_limit": 27.0
     },
     "Simulation": {
-        "interaction": "SimpleEighteenLevelInteraction",
+        "interaction": "Lithium18LevelInteraction",
         "step_resolution": 1,
-        "max_live_time": 4.0,
+        "simulated_time": 4.0,
         "random_seed": 15,
         "rate_mode": false,
         "flux": 6.7,
