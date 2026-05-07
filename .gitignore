@@ -9,3 +9,4 @@ __pycache__/
 find_transition_strengths.py
 plots.py
 .json
+CLAUDE.md

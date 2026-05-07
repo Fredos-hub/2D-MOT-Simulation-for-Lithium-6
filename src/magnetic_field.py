@@ -72,12 +72,13 @@ class IdealQuadrupoleField:
         # Extract the field strengths for these atom IDs
         B = simulation_atoms.magnetic_field_strength[atom_id]
 
-
         if (B >= 0.5*0.0025) & (B < 1e-1):
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        if (B > 0) & (B < 0.5*0.0025):    
+        elif (B > 0) & (B < 0.5*0.0025):
             simulation_atoms.max_step_lengths[atom_id] = 1e-6
-
+        else:
+            # B == 0 (trap centre) or B >= 1e-1 T: field varies slowly, use a generous step
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
 
         return
 
@@ -245,10 +246,14 @@ class DipoleBarMagneticField:
 
         if (B >= 0.5*0.01) & (B < 0.5*0.02):
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        elif (B>=0.0025*0.5) & (B< 0.5*0.01):
+        elif (B >= 0.0025*0.5) & (B < 0.5*0.01):
             simulation_atoms.max_step_lengths[atom_id] = 1e-5
-        elif (B > 0) & (B < 0.5*0.0025):    
+        elif (B > 0) & (B < 0.5*0.0025):
             simulation_atoms.max_step_lengths[atom_id] = 1e-6
+        else:
+            # B == 0 or B >= 0.5*0.02 T: always set a nonzero step to prevent loop stalls
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+
         return
     
     def calculate_mean_free_path(self, mean_excitation_time, atom_velocity):
@@ -368,10 +373,14 @@ class EllipticalMagneticField:
 
         if (B >= 0.5*0.01):
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        elif (B>=0.0025*0.5) & (B< 0.5*0.01):
+        elif (B >= 0.0025*0.5) & (B < 0.5*0.01):
             simulation_atoms.max_step_lengths[atom_id] = 1e-5
-        elif (B > 0) & (B < 0.5*0.0025):    
+        elif (B > 0) & (B < 0.5*0.0025):
             simulation_atoms.max_step_lengths[atom_id] = 1e-6
+        else:
+            # B == 0: always set a nonzero step to prevent loop stalls
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+
         return
 
     def calculate_mean_free_path(self, mean_excitation_time, atom_velocity):
@@ -507,7 +516,7 @@ def calculate_bar_dipole_field(
     atoms.magnetic_field_vectors[atom_id, 0]  = Bx
     atoms.magnetic_field_vectors[atom_id, 1]  = By
     atoms.magnetic_field_vectors[atom_id, 2]  = Bz
-    atoms.magnetic_field_strength[atom_id]    = math.sqrt(Bx*Bx + By*By + Bz*Bz)
+    atoms.magnetic_field_strength[atom_id]    =  math.sqrt(Bx*Bx + By*By + Bz*Bz)
 
 
 
