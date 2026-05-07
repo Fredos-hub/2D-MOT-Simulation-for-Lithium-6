@@ -85,6 +85,15 @@ class AtomsSettingsTab(QWidget):
         self.randomizeCheckbox = QCheckBox("Randomize Ground State")
         layout.addRow(self.randomizeCheckbox)
 
+
+
+        # Sample type
+        self.sampleTypeCombo = QComboBox()
+        self.sampleTypeCombo.addItem("Oven sample", "oven")
+        self.sampleTypeCombo.addItem("Snapshot sample", "snapshot")
+        layout.addRow("Sample Type:", self.sampleTypeCombo)
+        self.sampleTypeCombo.setMaximumWidth(225)
+
         # Sample file
         self.sample_line = QLineEdit()
         self.browse_sample_btn = QPushButton("Browse…")
@@ -111,6 +120,9 @@ class AtomsSettingsTab(QWidget):
         self.sample_line.textChanged.connect(self._on_sample_changed)
         self.sample_line.textChanged.connect(lambda path: self._update_model('sample_file', path))
 
+        # Sample type
+        self.sampleTypeCombo.currentIndexChanged.connect(self._on_sample_type_changed)
+
     def setModel(self, model):
         self._model = model
         self._model.blockSignals(True) 
@@ -121,7 +133,8 @@ class AtomsSettingsTab(QWidget):
             self.startVelWidget,
             self.groundStateCombo,
             self.randomizeCheckbox,
-            self.sample_line
+            self.sample_line,
+            self.sampleTypeCombo,
         ):
             w.blockSignals(True)
 
@@ -166,6 +179,12 @@ class AtomsSettingsTab(QWidget):
             # Reflect disable states
             self._update_sample_field_states(bool(sample))
 
+            # Sample type
+            sample_style = model.safe_get('Atoms', 'sample_style', default='oven')
+            idx = self.sampleTypeCombo.findData(sample_style)
+            if idx >= 0:
+                self.sampleTypeCombo.setCurrentIndex(idx)
+
         except Exception as e:
             QMessageBox.warning(
                 self,
@@ -181,7 +200,8 @@ class AtomsSettingsTab(QWidget):
                 self.startVelWidget,
                 self.groundStateCombo,
                 self.randomizeCheckbox,
-                self.sample_line
+                self.sample_line,
+                self.sampleTypeCombo,
             ):
                 w.blockSignals(False)
 
@@ -226,3 +246,10 @@ class AtomsSettingsTab(QWidget):
         lw = inst.natural_linewidth/(2*scc.pi*1e6)
         self.naturalLinewidthDisplay.setText(f"{lw:.2f}")
         self.setModel(self._model)
+
+
+    def _on_sample_type_changed(self, index):
+        if index < 0:
+            return
+        value = self.sampleTypeCombo.itemData(index)
+        self._update_model('sample_style', value)
