@@ -65,16 +65,16 @@ def _calculate_saturation_parameter(effective_transition_frequency: float, # in 
 
 
 
-        laser_beam_frequency_rad = laser_beam_frequency*2*scc.pi
+        laser_beam_frequency_rad = laser_beam_frequency*2*math.pi
 
-        effective_transition_frequency_rad = effective_transition_frequency*2*scc.pi
+        effective_transition_frequency_rad = effective_transition_frequency*2*math.pi
         
         
         effective_detuning =  laser_beam_frequency_rad - doppler_shift + detuning - effective_transition_frequency_rad 
 
         # Calculate Rabi frequencies (with a scaling factor from literature).
 
-        rabi_frequency = 2*scc.pi * 1e6 * 11.925*4.37* transition_strength * math.sqrt(0.001*laser_intensity) # 11.925 is the reduced D2-line matrix element for Li6 (Gehm 2003)
+        rabi_frequency = 2*math.pi * 1e6 * 11.925*4.37* transition_strength * math.sqrt(0.001*laser_intensity) # 11.925 is the reduced D2-line matrix element for Li6 (Gehm 2003)
 
         #  Compute saturation parameters using squared effective detunings.
         saturation_parameter = 0.5 * rabi_frequency**2 / (effective_detuning**2 + 0.25 * natural_linewidth**2)

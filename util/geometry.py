@@ -2,6 +2,7 @@
 #Class to handle generating random values for angles and starting positions#
 ############################################################################
 
+import math
 from numba import njit
 import numpy as np
 from matplotlib import pyplot as plt
@@ -30,9 +31,9 @@ def random_angle_in_hemisphere() -> tuple:
     v = np.random.uniform(0, 1)
     
     # Compute the polar angle using inverse sine to favor directions closer to the z-axis.
-    theta = np.arcsin(np.sqrt(u))
+    theta = math.asin(math.sqrt(u))
     # Compute the azimuthal angle uniformly around the circle.
-    phi = 2 * np.pi * v
+    phi = 2.0 * math.pi * v
     return theta, phi
 
 
@@ -180,12 +181,12 @@ def random_point_on_oven(radius: float, offset: float) -> np.ndarray:
         A point (x, y, z) on the surface, with y equal to the given offset.
     """
     # Compute a random radius with a square-root transformation for uniform area distribution.
-    r = radius * np.sqrt(np.random.uniform(0, 1))
+    r = radius * math.sqrt(np.random.uniform(0, 1))
     # Generate a random angle between 0 and 2π.
-    theta = np.random.uniform(0, 2 * np.pi)
+    theta = np.random.uniform(0, 2.0 * math.pi)
     # Convert polar coordinates to Cartesian coordinates on the XZ-plane.
-    x = r * np.cos(theta)
-    z = r * np.sin(theta)
+    x = r * math.cos(theta)
+    z = r * math.sin(theta)
     return np.array([x, offset, z])
 
 
@@ -204,14 +205,14 @@ def random_angle_in_sphere() -> np.ndarray:
     v = np.random.uniform(0, 1)  # For phi
 
     # Compute the polar angle using the inverse cosine function.
-    theta = np.arccos(2 * u - 1)
+    theta = math.acos(2.0 * u - 1.0)
     # Compute the azimuthal angle uniformly between 0 and 2π.
-    phi = 2 * np.pi * v
+    phi = 2.0 * math.pi * v
 
     # Convert spherical coordinates to Cartesian coordinates.
-    x = np.sin(theta) * np.cos(phi)
-    y = np.sin(theta) * np.sin(phi)
-    z = np.cos(theta)
+    x = math.sin(theta) * math.cos(phi)
+    y = math.sin(theta) * math.sin(phi)
+    z = math.cos(theta)
     return np.array([x, y, z])
 
 
@@ -256,9 +257,9 @@ def polar_to_cartesian_2d_y_axis(r: float, theta: float) -> np.ndarray:
         Cartesian coordinates as a 3-element array: [x, 0, z].
     """
     # Calculate the x-coordinate.
-    x = r * np.cos(theta)
+    x = r * math.cos(theta)
     # Calculate the z-coordinate.
-    z = r * np.sin(theta)
+    z = r * math.sin(theta)
     return np.array([x, 0, z])
 
 
@@ -310,11 +311,11 @@ def polar_to_cartesian_y_axis(r: float, theta: float, phi: float) -> np.ndarray:
         Cartesian coordinates as a 3-element array: [x, y, z], where y is the vertical component.
     """
     # Compute the x-coordinate.
-    x = r * np.sin(theta) * np.cos(phi)
+    x = r * math.sin(theta) * math.cos(phi)
     # Compute the y-coordinate (vertical component).
-    y = r * np.cos(theta)
+    y = r * math.cos(theta)
     # Compute the z-coordinate.
-    z = r * np.sin(theta) * np.sin(phi)
+    z = r * math.sin(theta) * math.sin(phi)
     return np.array([x, y, z])
 
 
@@ -334,7 +335,7 @@ def random_radius(r: float) -> float:
         A random radius value.
     """
     # The square-root transformation ensures uniform distribution over the circle's area.
-    return r * np.sqrt(np.random.uniform(0, 1))
+    return r * math.sqrt(np.random.uniform(0, 1))
 
 
 @njit
@@ -347,7 +348,7 @@ def random_angle() -> float:
     float
         A random angle uniformly distributed between 0 and 2π.
     """
-    return np.random.uniform(0, 2 * np.pi)
+    return np.random.uniform(0, 2.0 * math.pi)
 
 
 

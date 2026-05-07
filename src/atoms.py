@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from numba import float64, int32
 from numba.experimental import jitclass
@@ -90,9 +91,9 @@ class Li6:
         self.n = n
         self.mass_u = 6.015
         self.mass = self.mass_u * ATOMIC_MASS
-        self.natural_linewidth =  2 * np.pi * 5.87e6
-        self.transition_frequency =   446799648.889e6 # in Hz. D2 line COG from Li et al. (2020).
-        self.saturation_intensity = (np.pi * scc.h * scc.c * self.natural_linewidth) / (3.0 * (scc.c/self.transition_frequency)**3)
+        self.natural_linewidth = 2.0 * math.pi * 5.87e6
+        self.transition_frequency = 446799648.889e6 # in Hz. D2 line COG from Li et al. (2020).
+        self.saturation_intensity = (math.pi * scc.h * scc.c * self.natural_linewidth) / (3.0 * (scc.c/self.transition_frequency)**3)
         # --- Per-atom properties initialized as arrays ---
         # Initialize magnetic field properties
         self.magnetic_field_strength = np.zeros(self.n, dtype=np.float64)
@@ -154,9 +155,8 @@ class Li6:
         # If validations pass, update the positions and velocities of the atoms.
         self.positions[:] = positions
         self.velocities[:] = velocities
-        self.groundstates = groundstates
-        self.time_overshoot = starting_times
-
+        self.groundstates[:] = groundstates
+        self.time_overshoot[:] = starting_times
 
 
 
@@ -219,9 +219,9 @@ class Sr88:
         self.n = n
         self.mass_u = 87.9056
         self.mass = self.mass_u * ATOMIC_MASS
-        self.natural_linewidth  = 2 * np.pi * 32e6
-        self.transition_frequency  = scc.c/461e-9
-        self.saturation_intensity = (np.pi * scc.h * scc.c * self.natural_linewidth) / (3.0 * (scc.c/self.transition_frequency)**3)
+        self.natural_linewidth = 2.0 * math.pi * 32e6
+        self.transition_frequency = scc.c / 461e-9
+        self.saturation_intensity = (math.pi * scc.h * scc.c * self.natural_linewidth) / (3.0 * (scc.c/self.transition_frequency)**3)
         # --- Per-atom properties initialized as arrays ---
         # Initialize magnetic field properties
         self.magnetic_field_strength = np.zeros(self.n, dtype=np.float64)
@@ -249,7 +249,7 @@ class Sr88:
         # Assign unique IDs to each atom for tracking purposes.
         self.atom_ids = np.arange(0, self.n, dtype=np.int32)
 
-    def set_starting_conditions(self, positions: np.ndarray, velocities: np.ndarray, groundstates: np.ndarray) -> None:
+    def set_starting_conditions(self, positions: np.ndarray, velocities: np.ndarray, groundstates: np.ndarray, starting_times: np.ndarray) -> None:
         """
         Sets the initial conditions for the atoms, including positions and velocities.
 
@@ -274,16 +274,17 @@ class Sr88:
             raise ValueError(f"Positions must have shape ({self.n}, 3). Received shape: {positions.shape}")
 
         # Validate velocities: ensure no atom has a (0,0,0) velocity across all atoms
-        if np.all(velocities == 0):
-            raise ValueError("Velocity must not be (0,0,0) for all atoms.")
+        #if np.all(velocities == 0):
+        #    raise ValueError("Velocity must not be (0,0,0) for all atoms.")
         if velocities.shape != (self.n, 3):
             raise ValueError(f"Velocities must have shape ({self.n}, 3). Received shape: {velocities.shape}")
-        if groundstates.shape != (self.n, 3):
-            raise ValueError(f"Groundstates must have shape ({self.n}, 3). Received shape: {groundstates.shape}")
+        if groundstates.shape != (self.n,):
+            raise ValueError(f"Groundstates must have shape ({self.n}). Received shape: {groundstates.shape}")
         # If validations pass, update the positions and velocities of the atoms.
         self.positions[:] = positions
         self.velocities[:] = velocities
         self.groundstates = groundstates
+        self.time_overshoot = starting_times
 
 
 if __name__ == '__main__':

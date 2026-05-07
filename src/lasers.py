@@ -2,6 +2,7 @@
 #Contains classes to create objects for the several parts of the experimental setup.#
 #####################################################################################
 
+import math
 import numpy as np
 import scipy.constants as scc
 from util.simulation_typing import ECSAtoms
@@ -59,9 +60,9 @@ class LaserComponent:
 
         # Calculate derived properties
         self.beam_wavelengths[index] = scc.c / beam_frequency
-        k = 2 * scc.pi / self.beam_wavelengths[index]
+        k = 2.0 * math.pi / self.beam_wavelengths[index]
         self.wave_vectors[index, :] = k * self.normalized_directions[index, :]
-        self.initial_intensities[index] = 2 * beam_power / (np.pi * waist**2)
+        self.initial_intensities[index] = 2.0 * beam_power / (math.pi * waist**2)
 
 
 

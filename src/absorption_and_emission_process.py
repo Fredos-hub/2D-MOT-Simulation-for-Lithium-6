@@ -107,7 +107,7 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                             cosval = 1.0
                         elif cosval < -1.0:
                             cosval = -1.0
-                        angles_between_field_and_lasers[j] = np.arccos(cosval)
+                        angles_between_field_and_lasers[j] = math.acos(cosval)
 
                     squared_matrix_elements = calculate_handedness_to_polarization(angle_laser_magnetic_field=angles_between_field_and_lasers[j],
                                                                                    handedness=laser_handedness[j])
@@ -193,14 +193,14 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                     debug_counters[1] += 1
             else:
                 r = np.random.random()
-                t_event = -np.log(r) / total_excitation_rate
+                t_event = -math.log(r) / total_excitation_rate
                 if debug_counters is not None:
                     debug_counters[2] += 1
 
             mean_free_path_length = magnetic_field.calculate_mean_free_path(t_event, vel)
             motion_dt = magnetic_field.calculate_max_time_step(atom_max_step_length, vel)
 
-            if np.abs(mean_free_path_length) >= atom_max_step_length:
+            if math.fabs(mean_free_path_length) >= atom_max_step_length:
                 # geometry-limited motion advance
                 dt = motion_dt
                 if dt > remaining_time:
@@ -327,15 +327,15 @@ def beam_intensity_at_position(atom_position: np.ndarray,
 
     # Calculate the Rayleigh range.
 
-    rayleigh_range = (np.pi * beam_waist**2 * refractive_index) / (beam_wavelength)
+    rayleigh_range = (math.pi * beam_waist**2 * refractive_index) / (beam_wavelength)
 
     # Compute the beam width at the atom's axial position.
-    width_at_position = beam_waist * np.sqrt(1 + (axial_distance / (rayleigh_range))**2)
+    width_at_position = beam_waist * math.sqrt(1 + (axial_distance / (rayleigh_range))**2)
 
     # If the atom lies within the local beam width, compute intensity.
 
 
-    intensity = initial_intensity * np.exp(-2* (radial_distance / (width_at_position))**2)
+    intensity = initial_intensity * math.exp(-2 * (radial_distance / (width_at_position))**2)
     return intensity
 
 

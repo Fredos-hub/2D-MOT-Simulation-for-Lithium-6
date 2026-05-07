@@ -84,13 +84,13 @@ class IdealQuadrupoleField:
 
     def calculate_mean_free_path(self, mean_excitation_time, atom_velocity):
 
-        mean_free_path = mean_excitation_time * np.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2)
+        mean_free_path = mean_excitation_time * math.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2)
 
         return mean_free_path
 
     def calculate_max_time_step(self, max_step_length, atom_velocity):
 
-        max_time_step = max_step_length/(np.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2)+ 1e-12)
+        max_time_step = max_step_length / (math.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2) + 1e-12)
 
         return max_time_step
 
@@ -258,13 +258,13 @@ class DipoleBarMagneticField:
     
     def calculate_mean_free_path(self, mean_excitation_time, atom_velocity):
 
-        mean_free_path = mean_excitation_time * np.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2 + atom_velocity[2]**2)
+        mean_free_path = mean_excitation_time * math.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2 + atom_velocity[2]**2)
 
         return mean_free_path
 
     def calculate_max_time_step(self, max_step_length, atom_velocity):
 
-        max_time_step = max_step_length/(np.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2+atom_velocity[2]**2)+  1e-12)
+        max_time_step = max_step_length / (math.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2 + atom_velocity[2]**2) + 1e-12)
 
         return max_time_step 
 
@@ -317,7 +317,7 @@ class EllipticalMagneticField:
         self.g_y = g_y
         self.g_z = g_z
         self.offset = offset
-        self.theta = theta/180 * np.pi
+        self.theta = theta / 180.0 * math.pi
 
     def calculate_magnetic_field(self, simulation_atoms, atom_id: np.ndarray) -> None:
         """
@@ -384,10 +384,10 @@ class EllipticalMagneticField:
         return
 
     def calculate_mean_free_path(self, mean_excitation_time, atom_velocity):
-        return mean_excitation_time * np.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2)
+        return mean_excitation_time * math.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2)
 
     def calculate_max_time_step(self, max_step_length, atom_velocity):
-        return max_step_length / (np.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2) + 1e-12)
+        return max_step_length / (math.sqrt(atom_velocity[0]**2 + atom_velocity[1]**2) + 1e-12)
 
 @njit
 def calculate_zeeman_field(B_0: float, slower_length: float, simulation_atoms: ECSAtoms, atom_ids: np.ndarray, B_bias: float) -> None:
@@ -525,8 +525,8 @@ def calculate_bar_dipole_field(
 # -------------------------------
 @njit(cache=True)
 def _rot2(theta):
-    c = np.cos(theta)
-    s = np.sin(theta)
+    c = math.cos(theta)
+    s = math.sin(theta)
     R = np.empty((2,2), dtype=np.float64)
     R[0,0] = c;  R[0,1] = -s
     R[1,0] = s;  R[1,1] =  c
