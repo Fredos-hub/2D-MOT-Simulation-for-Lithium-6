@@ -1,13 +1,11 @@
 import os
-import time
-from PyQt5.QtCore import QThread, pyqtSignal
-from src.parameters import Parameters, ParameterError
 import re
 import json
 import time
 from datetime import datetime
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
+from src.parameters import Parameters, ParameterError
 
 
 class BatchSimulationWorker(QThread):
@@ -427,17 +425,6 @@ class BatchSimulationWorker(QThread):
 
         # Batch finished
         self.finished.emit()
-
-    def _normalize_ids(self, ids):
-        """Return an int index array from either a boolean mask or an index array-like."""
-        if ids is None:
-            return np.array([], dtype=int)
-        a = np.asarray(ids)
-        if a.dtype == bool:
-            return np.nonzero(a)[0]
-        return a.astype(int)
-
-
 
     def pause(self):
         self._pause = True

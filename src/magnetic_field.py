@@ -9,6 +9,12 @@ from numba.experimental import jitclass
 from util.simulation_typing import ECSAtoms
 import math
 
+# Adaptive step-size B-field thresholds for calculate_max_step_length.
+# Derived from ~0.5 T/m × reference distances.
+_B_FINE   = 1.25e-3   # 0.5 T/m × 2.5 mm
+_B_MID    = 5.0e-3    # 0.5 T/m × 10 mm
+_B_COARSE = 1.0e-2    # 0.5 T/m × 20 mm
+
 ##########################################
 # Ideal Quadrupole Magnetic Field Class  #
 ##########################################
@@ -72,9 +78,9 @@ class IdealQuadrupoleField:
         # Extract the field strengths for these atom IDs
         B = simulation_atoms.magnetic_field_strength[atom_id]
 
-        if (B >= 0.5*0.0025) & (B < 1e-1):
+        if (B >= _B_FINE) & (B < 1e-1):
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        elif (B > 0) & (B < 0.5*0.0025):
+        elif (B > 0) & (B < _B_FINE):
             simulation_atoms.max_step_lengths[atom_id] = 1e-6
         else:
             # B == 0 (trap centre) or B >= 1e-1 T: field varies slowly, use a generous step
@@ -244,14 +250,14 @@ class DipoleBarMagneticField:
     def calculate_max_step_length(self, simulation_atoms, atom_id: np.ndarray) -> None:
         B = simulation_atoms.magnetic_field_strength[atom_id]
 
-        if (B >= 0.5*0.01) & (B < 0.5*0.02):
+        if (B >= _B_MID) & (B < _B_COARSE):
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        elif (B >= 0.0025*0.5) & (B < 0.5*0.01):
+        elif (B >= _B_FINE) & (B < _B_MID):
             simulation_atoms.max_step_lengths[atom_id] = 1e-5
-        elif (B > 0) & (B < 0.5*0.0025):
+        elif (B > 0) & (B < _B_FINE):
             simulation_atoms.max_step_lengths[atom_id] = 1e-6
         else:
-            # B == 0 or B >= 0.5*0.02 T: always set a nonzero step to prevent loop stalls
+            # B == 0 or B >= _B_COARSE: always set a nonzero step to prevent loop stalls
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
 
         return
@@ -371,11 +377,11 @@ class EllipticalMagneticField:
     def calculate_max_step_length(self, simulation_atoms, atom_id: np.ndarray) -> None:
         B = simulation_atoms.magnetic_field_strength[atom_id]
 
-        if (B >= 0.5*0.01):
+        if B >= _B_MID:
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        elif (B >= 0.0025*0.5) & (B < 0.5*0.01):
+        elif (B >= _B_FINE) & (B < _B_MID):
             simulation_atoms.max_step_lengths[atom_id] = 1e-5
-        elif (B > 0) & (B < 0.5*0.0025):
+        elif (B > 0) & (B < _B_FINE):
             simulation_atoms.max_step_lengths[atom_id] = 1e-6
         else:
             # B == 0: always set a nonzero step to prevent loop stalls

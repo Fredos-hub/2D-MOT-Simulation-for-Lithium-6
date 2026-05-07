@@ -509,108 +509,111 @@ class Parameters:
         rng: np.random.Generator,
         simulation_interaction: LightAtomInteraction,
     ) -> None:
-        """
-        Fill simulation_atoms with positions, velocities and ground states.
-
-        Cases:
-        - no sample file: use JSON defaults
-        - snapshot sample: sample x/y/z, vx/vy/vz, current_groundstate
-        → zero time_overshoot, uniform subjective_time
-        - oven sample: existing behavior (time_overshoot = start_times)
-        """
-
-        N = simulation_atoms.n
-
-        # -------------------------
-        # CASE 1: No sample file
-        # -------------------------
         if sample_data is None or not self.sample_file:
-            if self.random_emission:
-                if not self.sample_file:
-                    msg = "random_emission is enabled but no valid sample file is available"
-                    self.errors.append(msg)
-                    self._call_status(msg)
-                    raise ParameterError(msg)
+            self._initialize_atoms_no_sample(simulation_atoms, start_times, rng, simulation_interaction)
+        elif self.sample_style == "snapshot":
+            self._initialize_atoms_snapshot(simulation_atoms, sample_data, rng)
+        else:
+            self._initialize_atoms_oven(simulation_atoms, sample_data, start_times, rng, simulation_interaction)
 
-                sample_hot = pd.read_csv(self.sample_file)
-                n_file = len(sample_hot)
-                idx = (rng.random(N) * n_file).astype(int).clip(0, n_file - 1)
+    def _initialize_atoms_no_sample(
+        self,
+        simulation_atoms: ECSAtoms,
+        start_times: np.ndarray,
+        rng: np.random.Generator,
+        simulation_interaction: LightAtomInteraction,
+    ) -> None:
+        N = simulation_atoms.n
+        if self.random_emission:
+            if not self.sample_file:
+                msg = "random_emission is enabled but no valid sample file is available"
+                self.errors.append(msg)
+                self._call_status(msg)
+                raise ParameterError(msg)
 
-                pos = sample_hot[["x", "y", "z"]].to_numpy()[idx]
-                sample_vel = sample_hot[["vx", "vy", "vz"]].to_numpy()[idx]
+            sample_hot = pd.read_csv(self.sample_file)
+            n_file = len(sample_hot)
+            idx = (rng.random(N) * n_file).astype(int).clip(0, n_file - 1)
 
+            pos = sample_hot[["x", "y", "z"]].to_numpy()[idx]
+            sample_vel = sample_hot[["vx", "vy", "vz"]].to_numpy()[idx]
+
+            vel_norms = np.linalg.norm(sample_vel, axis=1, keepdims=True)
+            eps = 1e-12
+            zero_mask = (vel_norms <= eps).flatten()
+            if zero_mask.any():
+                sample_vel[zero_mask, :] = np.array([1.0, 0.0, 0.0])
                 vel_norms = np.linalg.norm(sample_vel, axis=1, keepdims=True)
-                eps = 1e-12
-                zero_mask = (vel_norms <= eps).flatten()
-                if zero_mask.any():
-                    sample_vel[zero_mask, :] = np.array([1.0, 0.0, 0.0])
-                    vel_norms = np.linalg.norm(sample_vel, axis=1, keepdims=True)
 
-                direction = sample_vel / vel_norms
-                target_speed = np.linalg.norm(self.start_velocity)
-                vel = direction * target_speed
+            direction = sample_vel / vel_norms
+            target_speed = np.linalg.norm(self.start_velocity)
+            vel = direction * target_speed
 
-                if "current_groundstate" in sample_hot.columns:
-                    gs = sample_hot["current_groundstate"].to_numpy(dtype=np.int32)[idx]
-                else:
-                    n_gs = simulation_interaction.number_of_ground_states
-                    gs = rng.integers(0, n_gs, size=N, dtype=np.int32)
-
-                simulation_atoms.set_starting_conditions(pos, vel, gs, start_times)
-                self._call_status("Atoms initialized via random_emission path")
-
+            if "current_groundstate" in sample_hot.columns:
+                gs = sample_hot["current_groundstate"].to_numpy(dtype=np.int32)[idx]
             else:
-                pos = np.full((N, 3), self.start_position, dtype=np.float64)
-                vel = np.full((N, 3), self.start_velocity, dtype=np.float64)
+                n_gs = simulation_interaction.number_of_ground_states
+                gs = rng.integers(0, n_gs, size=N, dtype=np.int32)
 
-                if self.randomize_groundstates:
-                    n_gs = simulation_interaction.number_of_ground_states
-                    gs = rng.integers(0, n_gs, size=N, dtype=np.int32)
-                else:
-                    gs = np.full(N, self.ground_states, dtype=np.int32)
+            simulation_atoms.set_starting_conditions(pos, vel, gs, start_times)
+            self._call_status("Atoms initialized via random_emission path")
 
-                simulation_atoms.set_starting_conditions(pos, vel, gs, start_times)
-                self._call_status("Atoms starting conditions set (uniform)")
+        else:
+            pos = np.full((N, 3), self.start_position, dtype=np.float64)
+            vel = np.full((N, 3), self.start_velocity, dtype=np.float64)
 
-            return
+            if self.randomize_groundstates:
+                n_gs = simulation_interaction.number_of_ground_states
+                gs = rng.integers(0, n_gs, size=N, dtype=np.int32)
+            else:
+                gs = np.full(N, self.ground_states, dtype=np.int32)
 
-        # -------------------------
-        # CASE 2: Snapshot sample
-        # -------------------------
-        if self.sample_style == "snapshot":
-            n_file = len(sample_data)
-            idx = rng.integers(0, n_file, size=N)
+            simulation_atoms.set_starting_conditions(pos, vel, gs, start_times)
+            self._call_status("Atoms starting conditions set (uniform)")
 
-            sample_pos = np.ascontiguousarray(
-                sample_data[["x", "y", "z"]].to_numpy(dtype=np.float64)[idx]
-            )
-            sample_vel = np.ascontiguousarray(
-                sample_data[["velocity_x", "velocity_y", "velocity_z"]].to_numpy(dtype=np.float64)[idx]
-            )
-            sample_gs = np.ascontiguousarray(
-                sample_data["current_groundstate"].to_numpy(dtype=np.int32)[idx]
-            )
+    def _initialize_atoms_snapshot(
+        self,
+        simulation_atoms: ECSAtoms,
+        sample_data: pd.DataFrame,
+        rng: np.random.Generator,
+    ) -> None:
+        N = simulation_atoms.n
+        n_file = len(sample_data)
+        idx = rng.integers(0, n_file, size=N)
 
-            zero_times = np.zeros(N, dtype=np.float64)
-            subj = np.ascontiguousarray(
-                sample_data["subjective_time"].to_numpy(dtype=np.float64)[idx]
-            )
+        sample_pos = np.ascontiguousarray(
+            sample_data[["x", "y", "z"]].to_numpy(dtype=np.float64)[idx]
+        )
+        sample_vel = np.ascontiguousarray(
+            sample_data[["velocity_x", "velocity_y", "velocity_z"]].to_numpy(dtype=np.float64)[idx]
+        )
+        sample_gs = np.ascontiguousarray(
+            sample_data["current_groundstate"].to_numpy(dtype=np.int32)[idx]
+        )
+        subj = np.ascontiguousarray(
+            sample_data["subjective_time"].to_numpy(dtype=np.float64)[idx]
+        )
+        zero_times = np.zeros(N, dtype=np.float64)
 
-            simulation_atoms.set_starting_conditions(sample_pos, sample_vel, sample_gs, zero_times)
-            simulation_atoms.subjective_time[:] = subj
-            simulation_atoms.time_overshoot[:] = 0.0
-            write_atoms_to_csv(simulation_atoms, "snapshot_initial_conditions.csv")
-            self._call_status("Snapshot initial conditions applied")
-            return
+        simulation_atoms.set_starting_conditions(sample_pos, sample_vel, sample_gs, zero_times)
+        simulation_atoms.subjective_time[:] = subj
+        simulation_atoms.time_overshoot[:] = 0.0
+        write_atoms_to_csv(simulation_atoms, "snapshot_initial_conditions.csv")
+        self._call_status("Snapshot initial conditions applied")
 
-        # -------------------------
-        # CASE 3: Oven sample
-        # -------------------------
+    def _initialize_atoms_oven(
+        self,
+        simulation_atoms: ECSAtoms,
+        sample_data: pd.DataFrame,
+        start_times: np.ndarray,
+        rng: np.random.Generator,
+        simulation_interaction: LightAtomInteraction,
+    ) -> None:
+        N = simulation_atoms.n
         subj = sample_data.get("subjective_time", pd.Series(0.0)).to_numpy(dtype=np.float64)
         snapshot_flag = bool((subj != 0.0).any())
 
         if snapshot_flag:
-            # treat as full snapshot dump (no delays)
             pos = sample_data[["x", "y", "z"]].to_numpy(dtype=np.float64)
             vel = sample_data[["velocity_x", "velocity_y", "velocity_z"]].to_numpy(dtype=np.float64)
 
@@ -620,23 +623,19 @@ class Parameters:
                 )
 
             gs = sample_data["current_groundstate"].to_numpy(dtype=np.int32)
-
             zero_times = np.zeros(len(pos), dtype=np.float64)
 
             simulation_atoms.set_starting_conditions(pos, vel, gs, zero_times)
-
             simulation_atoms.subjective_time[:] = subj
             write_atoms_to_csv(simulation_atoms, "oven_snapshot_initial_conditions.csv")
             self._call_status("Snapshot initial conditions applied")
 
         else:
-            # standard oven behavior → delayed injection
             n_file = len(sample_data)
             idx = (rng.random(N) * n_file).astype(int).clip(0, n_file - 1)
 
             pos = sample_data[["x", "y", "z"]].to_numpy()[idx]
             vel = sample_data[["vx", "vy", "vz"]].to_numpy()[idx]
-
 
             n_gs = simulation_interaction.number_of_ground_states
             gs = rng.integers(0, n_gs, size=N, dtype=np.int32)

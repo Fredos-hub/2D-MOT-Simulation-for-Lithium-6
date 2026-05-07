@@ -26,7 +26,6 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                                                       magnetic_field: MagneticField,
                                                       excitation_counter: np.ndarray,
                                                       default_timestep: float,
-                                                      debug_counters: np.ndarray = None,
                                                       excitation_hist: np.ndarray = None ) -> None:
 
     n_lasers = lasers.n_lasers
@@ -166,8 +165,6 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
             # pending overshoot
             pending = simulation_atoms.time_overshoot[atom_id]
             has_pending = pending > 0.0
-            if debug_counters is not None:
-                debug_counters[0] += 1
 
             if (total_excitation_rate <= 0.0) and (not has_pending):
                 # motion-limited
@@ -182,20 +179,14 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
 
                 simulation_atoms.positions[atom_id] += vel * dt
                 simulation_atoms.velocities[atom_id] += np.array([0.0, -scc.g * dt, 0.0], dtype=np.float64)
-                if debug_counters is not None:
-                    debug_counters[4] += 1
                 continue
 
             # choose event time (use pending or sample)
             if has_pending:
                 t_event = pending
-                if debug_counters is not None:
-                    debug_counters[1] += 1
             else:
                 r = np.random.random()
                 t_event = -math.log(r) / total_excitation_rate
-                if debug_counters is not None:
-                    debug_counters[2] += 1
 
             mean_free_path_length = magnetic_field.calculate_mean_free_path(t_event, vel)
             motion_dt = magnetic_field.calculate_max_time_step(atom_max_step_length, vel)
@@ -223,8 +214,6 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                     else:
                         simulation_atoms.time_overshoot[atom_id] = 0.0
 
-                if debug_counters is not None:
-                    debug_counters[4] += 1
                 continue
 
             # event valid
@@ -235,8 +224,6 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                 excitation_counter[atom_id] += 1
                 accumulated_times[atom_id] += t_event
                 simulation_atoms.time_overshoot[atom_id] = 0.0
-                if debug_counters is not None:
-                    debug_counters[3] += 1
 
                 # fast flattened selection over the same excitation_rates buffer
                 idx_laser, atom_excited_state, exciting_polarization = determine_exciting_laser_flat(excitation_rates, total_excitation_rate)
@@ -269,8 +256,6 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
 
                 simulation_atoms.time_overshoot[atom_id] = t_event - delta
                 accumulated_times[atom_id] = default_timestep
-                if debug_counters is not None:
-                    debug_counters[5] += 1
                 # will be handled next step
 
         # end while for atom
@@ -338,45 +323,6 @@ def beam_intensity_at_position(atom_position: np.ndarray,
     intensity = initial_intensity * math.exp(-2 * (radial_distance / (width_at_position))**2)
     return intensity
 
-
-
-# ------------------------------------------------------------------------------------------
-# Helper function to randomly select a laser based on probabilities. only for 1 laser setups
-# ------------------------------------------------------------------------------------------
-
-@njit
-def determine_exciting_laser(excitation_rates: np.ndarray) -> Tuple[int, int]:
-    """
-        Determines the indices of the exciting laser and the excited state based on excitation rates.
-        Parameters
-        ----------
-        excitation_rates : np.ndarray
-            A 2D array where each element represents the excitation rate for a specific laser and state.
-        Returns
-        -------
-        Tuple[int, int]
-            A tuple containing:
-            - exciting_laser_index (int): The index of the exciting laser.
-            - excited_state (int): The index of the excited state.
-   
-    """
-    
-    random_number = np.random.uniform() * np.sum(excitation_rates)
-    cumulative_sum = 1e-35
-
-    for laser_index in range(excitation_rates.shape[0]):
-        for excitation_rate_index in range(excitation_rates.shape[1]):
-            for polarization in range(excitation_rates.shape[2]):
-
-                cumulative_sum  += excitation_rates[laser_index][excitation_rate_index][polarization]
-
-                if cumulative_sum >= random_number:
-
-
-                    exciting_laser_index = laser_index
-                    excited_state =  excitation_rate_index
-                    polarization = polarization
-                    return exciting_laser_index, excited_state, polarization
 
 
 
