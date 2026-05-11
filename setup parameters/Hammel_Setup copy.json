@@ -263,7 +263,7 @@
             "beam_power": 0.025,
             "beam_frequency": 446799571.079,
             "detuning": 1.0,
-            "handedness": 0,
+            "handedness": -1,
             "type": "unspecified"
         }
     ],

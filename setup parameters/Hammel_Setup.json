@@ -250,7 +250,7 @@
     ],
     "Boundaries": {
         "x_limit": 27.0,
-        "y_limit": 28.0,
+        "y_limit": 27.0,
         "z_limit": 27.0
     },
     "Simulation": {
