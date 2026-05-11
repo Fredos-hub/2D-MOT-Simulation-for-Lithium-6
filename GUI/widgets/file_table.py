@@ -1,13 +1,22 @@
 import os
 import json
 import shutil
+from enum import StrEnum
 from PyQt5.QtWidgets import (
     QWidget, QTableWidget, QTableWidgetItem, QPushButton, QCheckBox,
-    QVBoxLayout, QMenu, QAction, QInputDialog, QMessageBox, QHeaderView
+    QVBoxLayout, QMenu, QAction, QInputDialog, QMessageBox, QHeaderView,
+    QStyle, QStyleOptionButton, QStyleOptionViewItem, QApplication,
+    QStyledItemDelegate
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QEvent, QRect
 from PyQt5.QtGui import QBrush, QColor
-from PyQt5.QtWidgets import QStyledItemDelegate
+
+
+class FileSimState(StrEnum):
+    """Exclusive simulation-run states for a single file row."""
+    PENDING    = "pending"
+    SIMULATING = "simulating"
+    DONE       = "done"
 
 
 class ReadOnlyDelegate(QStyledItemDelegate):
@@ -16,20 +25,61 @@ class ReadOnlyDelegate(QStyledItemDelegate):
         return None
 
 
+class CenteredCheckBoxDelegate(QStyledItemDelegate):
+    """Radio-button-style indicator, centered in the cell."""
+
+    def paint(self, painter, option, index):
+        style = option.widget.style() if option.widget else QApplication.style()
+
+        # Draw only the background panel (selection highlight, setBackground color) — no checkbox decoration
+        bg_opt = QStyleOptionViewItem(option)
+        self.initStyleOption(bg_opt, index)
+        style.drawPrimitive(QStyle.PE_PanelItemViewItem, bg_opt, painter, option.widget)
+
+        # Draw radio indicator, centered and clipped to the cell
+        rb = QStyleOptionButton()
+        rb.state = QStyle.State_Enabled
+        rb.state |= QStyle.State_On if index.data(Qt.CheckStateRole) == Qt.Checked else QStyle.State_Off
+        rb.rect = option.rect
+        ind = style.subElementRect(QStyle.SE_RadioButtonIndicator, rb, option.widget)
+        cx = option.rect.x() + (option.rect.width()  - ind.width())  // 2
+        cy = option.rect.y() + (option.rect.height() - ind.height()) // 2
+        rb.rect = QRect(cx, cy, ind.width(), ind.height())
+        painter.save()
+        painter.setClipRect(option.rect)
+        style.drawPrimitive(QStyle.PE_IndicatorRadioButton, rb, painter, option.widget)
+        painter.restore()
+
+    def editorEvent(self, event, model, option, index):
+        if not (index.flags() & Qt.ItemIsUserCheckable):
+            return False
+        if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            current = index.data(Qt.CheckStateRole)
+            new_state = Qt.Unchecked if current == Qt.Checked else Qt.Checked
+            model.setData(index, new_state, Qt.CheckStateRole)
+            return True
+        return False
+
+
 class FileTableWidget(QWidget):
     """
     A widget that displays a directory of JSON files in a table with
     options to ignore, rename, delete files.
     """
-    fileRenamed     = pyqtSignal(str, str)  # old_name, new_name
-    fileDeleted     = pyqtSignal(str)       # file_name
-    fileCopied      = pyqtSignal(str, str)   # original, copy_name
-    fileIgnored     = pyqtSignal(str, bool) # file_name, ignored_flag
-    fileSelected    = pyqtSignal(str)       # file_name
+    fileRenamed        = pyqtSignal(str, str)  # old_name, new_name
+    fileDeleted        = pyqtSignal(str)       # file_name
+    fileCopied         = pyqtSignal(str, str)  # original, copy_name
+    fileIgnored        = pyqtSignal(str, bool) # file_name, ignored_flag
+    fileSelected       = pyqtSignal(str)       # file_name
+    openDiffRequested  = pyqtSignal(str)       # file_name
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_dir = None
+        self._dirty_state: set = set()            # filenames with unsaved changes
+        self._validation_state: dict = {}         # filename -> [] (valid) | [errors] | None (unknown)
+        self._sim_state: dict = {}                # filename -> FileSimState | None
+        self._updating_display = False            # re-entrancy guard for itemChanged
         self._setup_ui()
 
     def _setup_ui(self):
@@ -37,12 +87,15 @@ class FileTableWidget(QWidget):
         self.table.setHorizontalHeaderLabels([
             "Loaded File", "Ignore", "Status"
         ])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        # Make Status column read-only via delegate
-        self.table.setItemDelegateForColumn(2, ReadOnlyDelegate(self.table))
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table.setColumnWidth(1, 70)
+        # Delegates: read-only for name/status, centered checkbox for ignore
         self.table.setItemDelegateForColumn(0, ReadOnlyDelegate(self.table))
-        #self.table.setItemDelegateForColumn(1, ReadOnlyDelegate(self.table))
+        self.table.setItemDelegateForColumn(1, CenteredCheckBoxDelegate(self.table))
+        self.table.setItemDelegateForColumn(2, ReadOnlyDelegate(self.table))
 
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -51,11 +104,8 @@ class FileTableWidget(QWidget):
         # connect signals
         self.table.customContextMenuRequested.connect(self._show_context_menu)
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
-
-        #self.table.cellChanged.connect(self._on_cell_changed)
-        # replace the generic itemChanged for ignore‑toggles
-        # with a focused handler on clicks in column 2:
-        self.table.cellClicked.connect(self._on_ignore_clicked)
+        self.table.itemDoubleClicked.connect(self._on_double_clicked)
+        self.table.itemChanged.connect(self._on_item_changed)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.table)
@@ -69,24 +119,126 @@ class FileTableWidget(QWidget):
 
 
     def updateStatus(self, filename, dirty: bool):
-        """Update the 'Status' column for a given filename and highlight the row."""
+        """Called when the dirty state of a file changes."""
+        if dirty:
+            self._dirty_state.add(filename)
+        else:
+            self._dirty_state.discard(filename)
+        row = self._find_row(filename)
+        if row >= 0:
+            self._refresh_row_display(row, filename)
+
+    def setValidationStatus(self, filename, errors):
+        """
+        Set validation result for a file.
+        errors: list of jsonschema ValidationError objects ([] = valid, None = unknown).
+        """
+        self._validation_state[filename] = errors
+        row = self._find_row(filename)
+        if row >= 0:
+            self._refresh_row_display(row, filename)
+
+    def setSimulationStatus(self, filename, state: FileSimState | None):
+        """Set the simulation run state (PENDING / SIMULATING / DONE / None to clear)."""
+        self._sim_state[filename] = state
+        row = self._find_row(filename)
+        if row >= 0:
+            self._refresh_row_display(row, filename)
+
+    def _find_row(self, filename: str) -> int:
         for row in range(self.table.rowCount()):
-            if self.table.item(row, 0).text() == filename:
-                # Color the entire row
-                for col in range(self.table.columnCount()):
-                    cell = self.table.item(row, col)
-                    if cell:
-                        if dirty:
-                            # light yellow background for unsaved changes
-                            cell.setBackground(QBrush(QColor(255, 255, 150)))
-                        else:
-                            # reset to default background
-                            cell.setBackground(QBrush(Qt.white))
-                # Update status text
-                status_item = self.table.item(row, 2)
-                status_item.setText("unsaved" if dirty else "")
-                status_item.setTextAlignment(Qt.AlignCenter)
-                break
+            item = self.table.item(row, 0)
+            if item and item.text() == filename:
+                return row
+        return -1
+
+    def _refresh_row_display(self, row: int, filename: str):
+        """
+        Compute background + status text from all state layers (priority order):
+          ignored > simulation state > dirty/validation
+        """
+        if self._updating_display:
+            return
+        self._updating_display = True
+        try:
+            self._do_refresh_row_display(row, filename)
+        finally:
+            self._updating_display = False
+
+    def _do_refresh_row_display(self, row: int, filename: str):
+        status_item = self.table.item(row, 2)
+        if status_item is None:
+            return
+
+        ignore_item = self.table.item(row, 1)
+        ignored = ignore_item is not None and ignore_item.checkState() == Qt.Checked
+
+        sim    = self._sim_state.get(filename)
+        dirty  = filename in self._dirty_state
+        errors = self._validation_state.get(filename)
+
+        if ignored:
+            bg = QBrush(QColor(205, 205, 205))
+            fg = QColor(90, 90, 90)
+            if errors is None:
+                text = "ignored"
+            elif not errors:
+                text = "ignored  ✓ valid"
+            else:
+                text = f"ignored  {len(errors)} error(s)"
+
+        elif sim == FileSimState.SIMULATING:
+            bg   = QBrush(QColor(200, 230, 255))
+            text = "⟳ simulating"
+            fg   = QColor(0, 70, 160)
+        elif sim == FileSimState.PENDING:
+            bg   = QBrush(QColor(230, 230, 230))
+            text = "pending"
+            fg   = QColor(90, 90, 90)
+        elif sim == FileSimState.DONE:
+            bg   = QBrush(QColor(220, 255, 220))
+            text = "✓ done"
+            fg   = QColor(0, 130, 0)
+
+        else:
+            # dirty/validation
+            if errors is None:
+                if dirty:
+                    bg   = QBrush(QColor(255, 210, 100))
+                    text = "✎ unsaved"
+                    fg   = QColor(150, 70, 0)
+                else:
+                    bg   = QBrush(Qt.white)
+                    text = ""
+                    fg   = QColor(Qt.black)
+            elif not errors:
+                if dirty:
+                    bg   = QBrush(QColor(255, 215, 105))
+                    text = "✎ unsaved  ✓ valid"
+                    fg   = QColor(150, 70, 0)
+                else:
+                    bg   = QBrush(Qt.white)
+                    text = "✓ valid"
+                    fg   = QColor(0, 140, 0)
+            else:
+                n = len(errors)
+                if dirty:
+                    bg   = QBrush(QColor(255, 195, 110))
+                    text = f"✎ unsaved  {n} error(s)"
+                    fg   = QColor(160, 0, 0)
+                else:
+                    bg   = QBrush(QColor(255, 210, 210))
+                    text = f"{n} error(s)"
+                    fg   = QColor(180, 0, 0)
+
+        for col in range(self.table.columnCount()):
+            cell = self.table.item(row, col)
+            if cell:
+                cell.setBackground(bg)
+
+        status_item.setText(text)
+        status_item.setForeground(QBrush(fg))
+        status_item.setTextAlignment(Qt.AlignCenter)
 
 
 
@@ -123,6 +275,16 @@ class FileTableWidget(QWidget):
 
         self.table.blockSignals(False)
 
+        # Restore stored dirty/validation display state
+        for row in range(self.table.rowCount()):
+            fn = self.table.item(row, 0).text()
+            self._refresh_row_display(row, fn)
+
+    def _on_double_clicked(self, item):
+        row = item.row()
+        fn_item = self.table.item(row, 0)
+        if fn_item:
+            self.openDiffRequested.emit(fn_item.text())
 
     def _on_selection_changed(self):
         row = self.table.currentRow()
@@ -132,36 +294,47 @@ class FileTableWidget(QWidget):
 
 
 
-    def _on_ignore_clicked(self, row: int, col: int):
-        """Only for clicks in the Ignore column, toggle & emit."""
-        if col != 1:
+    def _on_item_changed(self, item):
+        """React only to checkbox toggles in the Ignore column (col 1)."""
+        if self._updating_display:
             return
-        item = self.table.item(row, col)
-        # flip it:
-        new_checked = (item.checkState() != Qt.Checked)
-        item.setCheckState(Qt.Checked if new_checked else Qt.Unchecked)
-        # apply the row coloring & emit
-        self._apply_ignore(row, new_checked)
+        if item.column() != 1:
+            return
+        if not (item.flags() & Qt.ItemIsUserCheckable):
+            return
+        row = item.row()
+        checked = (item.checkState() == Qt.Checked)
+        name = self.table.item(row, 0).text()
+        self._apply_ignore(row, checked)
+        self.fileIgnored.emit(name, checked)
 
     def _apply_ignore(self, row: int, checked: bool):
-        """Common logic to gray out and emit fileIgnored."""
-        bg = QBrush(Qt.darkGray) if checked else QBrush(Qt.white)
-        for c in range(self.table.columnCount()):
-            cell = self.table.item(row, c)
-            if cell:
-                cell.setBackground(bg)
-        name = self.table.item(row, 0).text()
-        self.fileIgnored.emit(name, checked)
+        """Visual update for ignore state (does not emit fileIgnored)."""
+        if self._updating_display:
+            return
+        self._updating_display = True
+        try:
+            name = self.table.item(row, 0).text()
+            self._do_refresh_row_display(row, name)
+        finally:
+            self._updating_display = False
 
     def _show_context_menu(self, point):
         row = self.table.rowAt(point.y())
         if row < 0:
             return
+        filename = self.table.item(row, 0).text()
         menu = QMenu(self)
+        validate_action = QAction("View Validation Issues…", self)
         rename = QAction("Rename File", self)
         delete = QAction("Delete File", self)
         copy = QAction("Copy File", self)
-        menu.addAction(rename); menu.addAction(delete); menu.addAction(copy)
+        menu.addAction(validate_action)
+        menu.addSeparator()
+        menu.addAction(rename)
+        menu.addAction(delete)
+        menu.addAction(copy)
+        validate_action.triggered.connect(lambda: self.openDiffRequested.emit(filename))
         rename.triggered.connect(lambda: self._rename(row))
         delete.triggered.connect(lambda: self._delete(row))
         copy.triggered.connect(lambda: self._copy(row))
