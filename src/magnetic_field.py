@@ -78,13 +78,13 @@ class IdealQuadrupoleField:
         # Extract the field strengths for these atom IDs
         B = simulation_atoms.magnetic_field_strength[atom_id]
 
-        if (B >= _B_FINE) & (B < 1e-1):
+        if B >= 1e-1:
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        elif (B > 0) & (B < _B_FINE):
-            simulation_atoms.max_step_lengths[atom_id] = 1e-6
+        elif B >= _B_FINE:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
         else:
-            # B == 0 (trap centre) or B >= 1e-1 T: field varies slowly, use a generous step
-            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+            # B < _B_FINE including B == 0: high scattering rate, use fine step
+            simulation_atoms.max_step_lengths[atom_id] = 1e-6
 
         return
 
@@ -250,15 +250,15 @@ class DipoleBarMagneticField:
     def calculate_max_step_length(self, simulation_atoms, atom_id: np.ndarray) -> None:
         B = simulation_atoms.magnetic_field_strength[atom_id]
 
-        if (B >= _B_MID) & (B < _B_COARSE):
+        if B >= _B_COARSE:
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        elif (B >= _B_FINE) & (B < _B_MID):
+        elif B >= _B_MID:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+        elif B >= _B_FINE:
             simulation_atoms.max_step_lengths[atom_id] = 1e-5
-        elif (B > 0) & (B < _B_FINE):
-            simulation_atoms.max_step_lengths[atom_id] = 1e-6
         else:
-            # B == 0 or B >= _B_COARSE: always set a nonzero step to prevent loop stalls
-            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+            # B < _B_FINE including B == 0: high scattering rate, use fine step
+            simulation_atoms.max_step_lengths[atom_id] = 1e-6
 
         return
     
@@ -379,13 +379,11 @@ class EllipticalMagneticField:
 
         if B >= _B_MID:
             simulation_atoms.max_step_lengths[atom_id] = 1e-4
-        elif (B >= _B_FINE) & (B < _B_MID):
+        elif B >= _B_FINE:
             simulation_atoms.max_step_lengths[atom_id] = 1e-5
-        elif (B > 0) & (B < _B_FINE):
-            simulation_atoms.max_step_lengths[atom_id] = 1e-6
         else:
-            # B == 0: always set a nonzero step to prevent loop stalls
-            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+            # B < _B_FINE including B == 0: high scattering rate, use fine step
+            simulation_atoms.max_step_lengths[atom_id] = 1e-6
 
         return
 
