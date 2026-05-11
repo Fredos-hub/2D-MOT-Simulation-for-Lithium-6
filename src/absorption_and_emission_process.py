@@ -14,10 +14,6 @@ from util.simulation_typing import ECSLasers, ECSAtoms, MagneticField, LightAtom
 from typing import Tuple
 
 
-# -----------------------------------------------------------------------------
-# Main routine: absorption and emission of photons for multiple atoms interacting with lasers.
-# -----------------------------------------------------------------------------
-
 @njit(parallel=True)
 def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                                                       simulation_atoms: ECSAtoms,

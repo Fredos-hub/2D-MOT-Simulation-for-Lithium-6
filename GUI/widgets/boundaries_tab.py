@@ -37,20 +37,15 @@ class BoundariesSettingsTab(QWidget):
 
     def setModel(self, model):
         self._model = model
-
-        self._model.blockSignals(True)
-
-        xval = model.get("Boundaries", "x_limit", default=0.0)
-        self.XLimitSpin.setValue(xval)
-        yval = model.get("Boundaries", "y_limit", default=0.0)
-        self.YLimitSpin.setValue(yval)
-        zval = model.get("Boundaries", "z_limit", default=0.0)
-        self.ZLimitSpin.setValue(zval)
-
-
-
-        self._model.blockSignals(False) 
-        return
+        for w in (self.XLimitSpin, self.YLimitSpin, self.ZLimitSpin):
+            w.blockSignals(True)
+        try:
+            self.XLimitSpin.setValue(model.get("Boundaries", "x_limit", default=0.0))
+            self.YLimitSpin.setValue(model.get("Boundaries", "y_limit", default=0.0))
+            self.ZLimitSpin.setValue(model.get("Boundaries", "z_limit", default=0.0))
+        finally:
+            for w in (self.XLimitSpin, self.YLimitSpin, self.ZLimitSpin):
+                w.blockSignals(False)
 
     def _update_model(self, key, value):
         if not self._model:

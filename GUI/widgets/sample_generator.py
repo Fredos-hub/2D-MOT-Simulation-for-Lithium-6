@@ -6,6 +6,7 @@ import csv
 
 import numpy as np
 import pandas as pd
+import scipy.constants as scc
 
 from PyQt5.QtWidgets import (
     QWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QHBoxLayout, QVBoxLayout,
@@ -314,13 +315,11 @@ class SampleGeneratorTab(QWidget):
 
     def _maxwell_boltzmann_speed_pdf(self, speed: np.ndarray, temperature_k: float, mass_u: float) -> np.ndarray:
         """Maxwell-Boltzmann speed distribution for a monatomic gas."""
-        k_b = 1.380649e-23
-        amu_to_kg = 1.66053906660e-27
         temperature_k = max(float(temperature_k), 1e-12)
-        mass_kg = max(float(mass_u), 1e-12) * amu_to_kg
+        mass_kg = max(float(mass_u), 1e-12) * scc.u
 
-        prefactor = 4.0 * np.pi * (mass_kg / (2.0 * np.pi * k_b * temperature_k)) ** 1.5
-        return prefactor * speed**2 * np.exp(-(mass_kg * speed**2) / (2.0 * k_b * temperature_k))
+        prefactor = 4.0 * np.pi * (mass_kg / (2.0 * np.pi * scc.k * temperature_k)) ** 1.5
+        return prefactor * speed**2 * np.exp(-(mass_kg * speed**2) / (2.0 * scc.k * temperature_k))
 
     def _update_oven_distribution_plot(self):
         ax = getattr(self, "distribution_ax", None)
@@ -335,10 +334,8 @@ class SampleGeneratorTab(QWidget):
         vmin = min(self.vel_min.value(), self.vel_max.value())
         vmax = max(self.vel_min.value(), self.vel_max.value())
 
-        k_b = 1.380649e-23
-        amu_to_kg = 1.66053906660e-27
-        mass_kg = mass_u * amu_to_kg
-        v_peak = np.sqrt((2.0 * k_b * temperature) / mass_kg) if mass_kg > 0 else max(vmax, 1.0)
+        mass_kg = mass_u * scc.u
+        v_peak = np.sqrt((2.0 * scc.k * temperature) / mass_kg) if mass_kg > 0 else max(vmax, 1.0)
 
         domain_max = max(vmax * 2.0, v_peak * 3.5, 1.0)
         speed = np.linspace(0.0, domain_max, 1000)

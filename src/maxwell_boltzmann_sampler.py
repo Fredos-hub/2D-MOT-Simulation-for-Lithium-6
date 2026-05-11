@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.constants as scc
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit
@@ -32,8 +33,8 @@ class MaxwellBoltzmannLookupSampler:
     """
     def __init__(self, mass_u: float, temperature: float, pdf: str = 'Maxwell-Boltzmann-Distribution v3', num_bins: int = 1_000_000, v_max: float = None):
 
-        self.k_B = 1.38064852e-23  # Boltzmann constant in J/K
-        self.mass = mass_u * 1.66053906660e-27
+        self.k_B = scc.k
+        self.mass = mass_u * scc.u
         self.temperature = temperature
         self.pdf_type = pdf
 

@@ -4,6 +4,7 @@
 
 
 import numpy as np
+import scipy.constants as scc
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
 from matplotlib import pyplot as plt
@@ -125,8 +126,7 @@ class DistributionLookup:
         else:
             # Determine a range based on the sampled values and theoretical most likely velocity.
             # For Maxwell–boltzmann, the most likely velocity is v_mp = sqrt(2 * k_B * T / m).
-            k_B = 1.38064852e-23  # boltzmann constant
-            v_mp = np.sqrt(2 * k_B * self.temperature / self.mass)
+            v_mp = np.sqrt(2 * scc.k * self.temperature / self.mass)
             x_min = 0
             x_max = max(np.max(velocities), 3 * v_mp)
             x_vals = np.linspace(x_min, x_max, 10000)
@@ -138,9 +138,8 @@ class DistributionLookup:
         # For Maxwell–boltzmann speed distribution:
         # Most likely velocity (v_mp) = sqrt(2 * k_B * T / m)
         # Mean velocity (v_mean) = sqrt(8 * k_B * T / (pi * m))
-        k_B = 1.38064852e-23  # boltzmann constant
-        v_mp = np.sqrt(2 * k_B * self.temperature / self.mass)
-        v_mean = np.sqrt(8 * k_B * self.temperature / (np.pi * self.mass))
+        v_mp = np.sqrt(2 * scc.k * self.temperature / self.mass)
+        v_mean = np.sqrt(8 * scc.k * self.temperature / (np.pi * self.mass))
 
         # Create the plot.
         plt.figure(figsize=(8, 6))
@@ -166,33 +165,14 @@ class DistributionLookup:
 # Pure Distribution Functions (Stateless)
 # ------------------------------------------------------------------------------
 
-def maxwell_boltzmann_v2(velocity, mass, temperature, boltzmann_constant=1.38064852e-23):
-    """
-    Compute the Maxwell-boltzmann probability density (proportional to v^2).
+def maxwell_boltzmann_v2(velocity, mass, temperature):
+    """Maxwell-Boltzmann speed distribution (∝ v²)."""
+    factor = 4 * np.pi * (mass / (2 * np.pi * scc.k * temperature)) ** 1.5
+    return factor * velocity**2 * np.exp(-mass * velocity**2 / (2 * scc.k * temperature))
 
-    Parameters
-    ----------
-    x : float
-        Velocity at which to evaluate the distribution.
-    mass : float
-        Particle mass in kilograms.
-    temperature : float
-        Temperature in Kelvin.
-    boltzmann_constant : float, optional
-        boltzmann constant (default: 1.38064852e-23 J/K).
-
-    Returns
-    -------
-    float
-        Probability density at velocity x.
-    """
-    factor = 4 * np.pi * (mass / (2 * np.pi * boltzmann_constant * temperature)) ** 1.5
-    return factor * velocity**2 * np.exp(-mass * velocity**2 / (2 * boltzmann_constant * temperature))
-
-def maxwell_boltzmann_v2(velocity, mass, temperature, boltzmann_constant=1.38064852e-23):
-
-    P_v = 0.5*math.pow((mass/(boltzmann_constant*temperature)), 2)*math.pow(velocity, 3)*math.exp((-mass*math.pow(velocity, 2))/(2*boltzmann_constant*temperature))
-
+def maxwell_boltzmann_v3(velocity, mass, temperature):
+    """Maxwell-Boltzmann effusion distribution (∝ v³, flux-weighted)."""
+    P_v = 0.5 * math.pow((mass / (scc.k * temperature)), 2) * math.pow(velocity, 3) * math.exp((-mass * math.pow(velocity, 2)) / (2 * scc.k * temperature))
     return P_v
 
 
@@ -251,7 +231,7 @@ def find_pdf_range(distribution_function, mass, temperature, threshold=1e-12, in
             raise ValueError("Lower bound could not be determined.")
 
     # Determine upper bound starting at the most probable velocity.
-    most_likely_v = np.sqrt(2 * 1.38064852e-23 * temperature / mass)
+    most_likely_v = np.sqrt(2 * scc.k * temperature / mass)
     upper_bound = most_likely_v
     while distribution_function(upper_bound, mass, temperature) > threshold:
         upper_bound += initial_step
