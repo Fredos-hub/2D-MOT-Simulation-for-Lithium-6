@@ -6,20 +6,19 @@ from util.simulation_typing import MagneticField, ECSAtoms, LightAtomInteraction
 class Simulation():
     """
     Handles simulation of atoms interacting with lasers and a magnetic field.
-    Dead atoms are advanced each step along a straight line and are affected
-    by gravity via a -0.5 * g * dt**2 term in z.
+    Gravity (scipy.constants.g, -y direction) is applied inside
+    absorption_and_emission_default_timestep at every time advance.
     """
     def __init__(self, lasers: ECSLasers,
-                 magnetic_field: MagneticField, 
-                 simulation_atoms: ECSAtoms, 
-                 simulation_interaction: LightAtomInteraction, 
+                 magnetic_field: MagneticField,
+                 simulation_atoms: ECSAtoms,
+                 simulation_interaction: LightAtomInteraction,
                  max_step_number: int,
                  step_resolution: int,
                  simulated_time: float,
                  boundaries: np.ndarray,
                  default_timestep: float = 1e-5,
-                 voxel_size: float = 1e-5,
-                 gravity: float = 9.81):   # new gravity parameter
+                 voxel_size: float = 1e-5):
 
         # setup objects
         self.lasers = lasers
@@ -35,7 +34,6 @@ class Simulation():
         self.step_resolution = step_resolution
         self.default_timestep = default_timestep
         self.voxel_size = voxel_size
-        self.gravity = gravity
 
         # Counter for absorption/emission events for each atom.
         self.excitation_counter = np.zeros(self.simulation_atoms.n, dtype=np.int64)
