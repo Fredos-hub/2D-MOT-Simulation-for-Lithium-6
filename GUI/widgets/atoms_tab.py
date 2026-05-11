@@ -116,9 +116,8 @@ class AtomsSettingsTab(QWidget):
         # Randomize checkbox
         self.randomizeCheckbox.stateChanged.connect(lambda state: self._update_model('randomize_ground_state', state == Qt.Checked))
         self.randomizeCheckbox.toggled.connect(self.groundStateCombo.setDisabled)
-        # Sample file change
+        # Sample file change (_on_sample_changed already calls _update_model internally)
         self.sample_line.textChanged.connect(self._on_sample_changed)
-        self.sample_line.textChanged.connect(lambda path: self._update_model('sample_file', path))
 
         # Sample type
         self.sampleTypeCombo.currentIndexChanged.connect(self._on_sample_type_changed)
