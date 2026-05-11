@@ -86,6 +86,10 @@ class MainWindow(QMainWindow):
         self.toolBar.run_action.triggered.connect(self.simulationCockpitTab.run_simulation_from_file_table)
         self.toolBar.discard_action.triggered.connect(self.simulationCockpitTab.discard_changes)
         self.toolBar.discard_all_action.triggered.connect(self.simulationCockpitTab.discard_all_changes)
+        self.toolBar.pause_action.triggered.connect(self.simulationCockpitTab.pause_simulation)
+        self.toolBar.resume_action.triggered.connect(self.simulationCockpitTab.resume_simulation)
+        self.toolBar.cancel_action.triggered.connect(self.simulationCockpitTab.cancel_simulation)
+        self.simulationCockpitTab.simulationStateChanged.connect(self._on_simulation_state_changed)
 
         # Handle dynamic scaling when moving between screens.
         # windowHandle() can be None until the widget is shown; guard it.
@@ -127,7 +131,25 @@ class MainWindow(QMainWindow):
         self.adjustSize()
         self.updateGeometry()
 
+    def _on_simulation_state_changed(self, state: str):
+        """Update toolbar button states when simulation state changes."""
+        tb = self.toolBar
+        if state == "running":
+            tb.run_action.setEnabled(False)
+            tb.pause_action.setEnabled(True)
+            tb.resume_action.setEnabled(False)
+            tb.cancel_action.setEnabled(True)
+        elif state == "paused":
+            tb.run_action.setEnabled(False)
+            tb.pause_action.setEnabled(False)
+            tb.resume_action.setEnabled(True)
+            tb.cancel_action.setEnabled(True)
+        else:  # "idle"
+            tb.run_action.setEnabled(True)
+            tb.pause_action.setEnabled(False)
+            tb.resume_action.setEnabled(False)
+            tb.cancel_action.setEnabled(False)
+
     def onScreenChanged(self, screen):
         """Slot called when the window moves to another screen."""
-        # screen is a QScreen instance for the new screen
         self.apply_scale_for_screen(screen)

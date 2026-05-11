@@ -1,3 +1,4 @@
+import gc
 import os
 import re
 import json
@@ -6,7 +7,7 @@ from datetime import datetime
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
 from src.parameters import Parameters, ParameterError
-
+from util.simulation_typing import ECSAtoms
 
 class BatchSimulationWorker(QThread):
     progressChanged = pyqtSignal(int)
@@ -22,6 +23,7 @@ class BatchSimulationWorker(QThread):
         self.file_names = file_names
         self._pause = False
         self._stop = False
+        self._stop_current = False   # cancel only the current file, then continue
 
         # --- file state ---
         self.batch_root = None          # path to simulation_results
@@ -144,7 +146,7 @@ class BatchSimulationWorker(QThread):
             cols += ["current_groundstate"]
         return ",".join(cols) + "\n"
 
-    def write_step_results(self, run_idx: int, step: int, current_atom_states=None, alive_ids=None,
+    def write_step_results(self, run_idx: int, step: int, current_atom_states: ECSAtoms = None, alive_ids=None,
                         excitation_counter=None,
                         write_position: bool = True,
                         write_velocity: bool = True,
@@ -331,10 +333,20 @@ class BatchSimulationWorker(QThread):
                 # 3) Run simulation steps
                 for i in range(sim.current_step, total_steps):
                     if self._stop:
-                        self.statusChanged.emit("Simulation stopped.")
+                        pct = int(i / total_steps * 100) if total_steps > 0 else 0
+                        self.statusChanged.emit(
+                            f"Cancelled {filename} at step {i}/{total_steps} ({pct}%) "
+                            f"— partial results saved. Stopping all."
+                        )
+                        break
+                    if self._stop_current:
+                        pct = int(i / total_steps * 100) if total_steps > 0 else 0
+                        self.statusChanged.emit(
+                            f"Cancelled {filename} at step {i}/{total_steps} ({pct}%) "
+                            f"— partial results saved. Continuing with remaining files."
+                        )
                         break
                     while self._pause:
-                        self.statusChanged.emit("Simulation paused.")
                         self.msleep(100)
 
                     # inside run() for each step i:
@@ -410,18 +422,19 @@ class BatchSimulationWorker(QThread):
             except Exception as e:
                 self.statusChanged.emit(f"Exception during simulation ({filename}): {e}")
             finally:
-                # Always close run files
                 try:
                     self.close_run(idx)
                 except Exception:
                     pass
-                print(exc_hist)
                 sim.finalize()
-
                 duration = time.perf_counter() - start_time
                 self.statusChanged.emit(f"----------------Completed {filename} in {duration:.2f}s.----------------")
-                # File done
                 self.fileFinished.emit(filename)
+                # Reset per-file cancel flag and release memory
+                self._stop_current = False
+                del sim
+                del params
+                gc.collect()
 
         # Batch finished
         self.finished.emit()
@@ -432,5 +445,13 @@ class BatchSimulationWorker(QThread):
     def resume(self):
         self._pause = False
 
+    def stop_current(self):
+        """Cancel the running simulation, then continue with remaining files."""
+        self._stop_current = True
+        self._pause = False  # unblock if currently paused
+
     def stop(self):
+        """Cancel all remaining simulations."""
         self._stop = True
+        self._stop_current = True  # also unblock the inner loop immediately
+        self._pause = False        # unblock if currently paused
