@@ -66,7 +66,7 @@ class IdealQuadrupoleField:
         """
         x = positions[..., 0]
         y = positions[..., 1]
-        B_x = self.gradient * y *0.6
+        B_x = self.gradient * y
         B_y = self.gradient * x
         B_z = np.zeros_like(x)
         B = np.stack((B_x, B_y, B_z), axis=-1)
