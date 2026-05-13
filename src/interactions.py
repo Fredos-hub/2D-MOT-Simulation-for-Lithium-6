@@ -10,6 +10,7 @@ import src.interaction_wrappers.six_level_wrappers as slw
 import src.interaction_wrappers.eighteen_level_wrappers as elw
 import src.interaction_wrappers.four_level_wrappers as flw
 import src.interaction_wrappers.simple_eighteen_level_wrappers as simple_elw
+import src.interaction_wrappers.common as common
 
 
 BOHR_MAGNETON = scc.physical_constants["Bohr magneton"][0]
@@ -86,10 +87,10 @@ class Lithium6LevelInteraction:
                        natural_linewidth,
                        excitation_rates):
         
-        slw._calculate_excitation_rate(saturation_parameters,
-                                       total_saturation_parameter,
-                                       natural_linewidth,
-                                       excitation_rates)
+        common._calculate_excitation_rate(saturation_parameters=saturation_parameters,
+                                          total_saturation_parameter=total_saturation_parameter,
+                                          natural_linewidth=natural_linewidth,
+                                          excitation_rates=excitation_rates)
         
 
 
@@ -111,14 +112,14 @@ class Lithium6LevelInteraction:
     
         
         transition_strength = self.branch_table[excited_state][ground_state][polarization]
-        saturation_parameter = slw._calculate_saturation_parameter(laser_intensity = laser_intensity,
-                                                                   natural_linewidth=natural_linewidth,
-                                                                   transition_strength=transition_strength,
-                                                                   effective_transition_frequency=effective_transition_frequency,
-                                                                   doppler_shift = doppler_shift,
-                                                                   laser_beam_frequency=laser_beam_frequency,
-                                                                   detuning = detuning)
-        
+        saturation_parameter = common._calculate_saturation_parameter(effective_transition_frequency=effective_transition_frequency,
+                                                                      doppler_shift=doppler_shift,
+                                                                      laser_beam_frequency=laser_beam_frequency,
+                                                                      detuning=detuning,
+                                                                      transition_strength=transition_strength,
+                                                                      laser_intensity=laser_intensity,
+                                                                      natural_linewidth=natural_linewidth)
+
         return saturation_parameter
 
     def calculate_transition_frequency_shift(self, 
@@ -200,58 +201,69 @@ class Lithium18LevelInteraction:
         - Energy shift (Joules) for the transition.
         """
 
-        transition_frequency_shift = elw.calculate_transition_frequency_shift(ground_state, excited_state, polarization, magnetic_field_strength)
+        transition_frequency_shift = elw.calculate_transition_frequency_shift(
+            GS=ground_state,
+            ES=excited_state,
+            pol=polarization,
+            B=magnetic_field_strength)
 
         return transition_frequency_shift
 
 
-    def calculate_rate(self, 
+    def calculate_rate(self,
                        saturation_parameters,
                        total_saturation_parameter,
                        natural_linewidth,
                        excitation_rates):
-        
-        elw._calculate_transition_rate(saturation_parameters,
-                                       total_saturation_parameter,
-                                       natural_linewidth,
-                                       excitation_rates)
-    
+
+        common._calculate_excitation_rate(saturation_parameters=saturation_parameters,
+                                          total_saturation_parameter=total_saturation_parameter,
+                                          natural_linewidth=natural_linewidth,
+                                          excitation_rates=excitation_rates)
+
 
     def calculate_saturation_parameter(self,
-                                       polarization: int, 
-                                       magnetic_field_strength: float, 
-                                       ground_state: float, 
-                                       excited_state: float, 
-                                       laser_intensity: float, 
-                                       natural_linewidth: float, 
-                                       saturation_intensity: float, 
-                                       effective_transition_frequency: float, 
-                                       doppler_shift, 
-                                       laser_beam_frequency: float, 
+                                       polarization: int,
+                                       magnetic_field_strength: float,
+                                       ground_state: float,
+                                       excited_state: float,
+                                       laser_intensity: float,
+                                       natural_linewidth: float,
+                                       saturation_intensity: float,
+                                       effective_transition_frequency: float,
+                                       doppler_shift,
+                                       laser_beam_frequency: float,
                                        detuning: float):
-        
-        transition_strength = elw.calculate_transition_strength(GS = ground_state, ES = excited_state, pol = polarization, B = magnetic_field_strength)
 
-        saturation_parameter = elw._calculate_saturation_parameter(effective_transition_frequency=effective_transition_frequency,
-                                                         doppler_shift=doppler_shift,
-                                                         laser_beam_frequency=laser_beam_frequency,
-                                                         detuning = detuning,
-                                                         transition_strength= transition_strength,
-                                                         laser_intensity = laser_intensity,
-                                                         natural_linewidth = natural_linewidth
-                                                         )
-        
+        transition_strength = elw.calculate_transition_strength(
+            GS=ground_state,
+            ES=excited_state,
+            pol=polarization,
+            B=magnetic_field_strength)
+
+        saturation_parameter = common._calculate_saturation_parameter(effective_transition_frequency=effective_transition_frequency,
+                                                                      doppler_shift=doppler_shift,
+                                                                      laser_beam_frequency=laser_beam_frequency,
+                                                                      detuning=detuning,
+                                                                      transition_strength=transition_strength,
+                                                                      laser_intensity=laser_intensity,
+                                                                      natural_linewidth=natural_linewidth)
+
         return saturation_parameter
 
 
 
-    def calculate_branching_ratio(self, 
-                                  polarization: int, 
-                                  ground_state: int, 
-                                  excited_state: int, 
+    def calculate_branching_ratio(self,
+                                  polarization: int,
+                                  ground_state: int,
+                                  excited_state: int,
                                   magnetic_field_strength: float):
-        
-        return elw.calculate_transition_strength(ground_state, excited_state, polarization, magnetic_field_strength)
+
+        return elw.calculate_transition_strength(
+            GS=ground_state,
+            ES=excited_state,
+            pol=polarization,
+            B=magnetic_field_strength)
 
 
 #################################################
@@ -295,11 +307,11 @@ class Lithium4LevelInteraction:
                        natural_linewidth,
                        excitation_rates):
         
-        flw._calculate_excitation_rate(saturation_parameters = saturation_parameters,
-                                                          total_saturation_parameter=total_saturation_parameter,
-                                                          natural_linewidth=natural_linewidth,
-                                                          excitation_rates=excitation_rates)
-        return 
+        common._calculate_excitation_rate(saturation_parameters=saturation_parameters,
+                                          total_saturation_parameter=total_saturation_parameter,
+                                          natural_linewidth=natural_linewidth,
+                                          excitation_rates=excitation_rates)
+        return
     
 
 
@@ -317,25 +329,30 @@ class Lithium4LevelInteraction:
                                     detuning: float):
     
         
-        if [ground_state, excited_state, polarization] in self.allowed_transitions:
-            transition_strength = 1
-            saturation_parameter = flw._calculate_saturation_parameter(laser_intensity = laser_intensity,
-                                                                    natural_linewidth=natural_linewidth,
-                                                                    transition_strength=transition_strength,
-                                                                    effective_transition_frequency=effective_transition_frequency,
-                                                                    doppler_shift = doppler_shift,
-                                                                    laser_beam_frequency=laser_beam_frequency,
-                                                                    detuning = detuning)
+        allowed = flw._is_transition_allowed(polarization=polarization,
+                                             ground_state=ground_state,
+                                             excited_state=excited_state,
+                                             allowed_transitions=self.allowed_transitions)
+        if allowed:
+            transition_strength = 1.0
+            saturation_parameter = common._calculate_saturation_parameter(effective_transition_frequency=effective_transition_frequency,
+                                                                          doppler_shift=doppler_shift,
+                                                                          laser_beam_frequency=laser_beam_frequency,
+                                                                          detuning=detuning,
+                                                                          transition_strength=transition_strength,
+                                                                          laser_intensity=laser_intensity,
+                                                                          natural_linewidth=natural_linewidth)
         else:
-            saturation_parameter = 0
-        
+            saturation_parameter = 0.0
+
         return saturation_parameter
-    
-    def calculate_branching_ratio(self, ground_state: int,
-                                        excited_state: int,
-                                        polarization: int,
-                                        magnetic_field_strength: float):
-        
+
+    def calculate_branching_ratio(self,
+                                  polarization: int,
+                                  ground_state: int,
+                                  excited_state: int,
+                                  magnetic_field_strength: float):
+
         return 1
                                         
 
@@ -429,52 +446,52 @@ class SimpleEighteenLevelInteraction:
         - Energy shift (Joules) for the transition.
         """
 
-        transition_frequency_shift = simple_elw._calculate_transition_frequency_shift(magnetic_field_strength,
-                                                                                     self.mu_B,
-                                                                                     self.ground_mf[ground_state],
-                                                                                     self.excited_mf[excited_state],
-                                                                                     self.ground_gf[ground_state],
-                                                                                     self.excited_gf[excited_state])
+        transition_frequency_shift = simple_elw._calculate_transition_frequency_shift(
+            magnetic_field_strength=magnetic_field_strength,
+            mu_B=self.mu_B,
+            ground_mf=self.ground_mf[ground_state],
+            excited_mf=self.excited_mf[excited_state],
+            ground_gf=self.ground_gf[ground_state],
+            excited_gf=self.excited_gf[excited_state])
 
         return transition_frequency_shift
 
 
-    def calculate_rate(self, 
+    def calculate_rate(self,
                        saturation_parameters,
                        total_saturation_parameter,
                        natural_linewidth,
                        excitation_rates):
-        
-        elw._calculate_transition_rate(saturation_parameters,
-                                       total_saturation_parameter,
-                                       natural_linewidth,
-                                       excitation_rates)
-    
+
+        common._calculate_excitation_rate(saturation_parameters=saturation_parameters,
+                                          total_saturation_parameter=total_saturation_parameter,
+                                          natural_linewidth=natural_linewidth,
+                                          excitation_rates=excitation_rates)
+
 
     def calculate_saturation_parameter(self,
-                                       polarization: int, 
-                                       magnetic_field_strength: float, 
-                                       ground_state: float, 
-                                       excited_state: float, 
-                                       laser_intensity: float, 
-                                       natural_linewidth: float, 
-                                       saturation_intensity: float, 
-                                       effective_transition_frequency: float, 
-                                       doppler_shift, 
-                                       laser_beam_frequency: float, 
+                                       polarization: int,
+                                       magnetic_field_strength: float,
+                                       ground_state: float,
+                                       excited_state: float,
+                                       laser_intensity: float,
+                                       natural_linewidth: float,
+                                       saturation_intensity: float,
+                                       effective_transition_frequency: float,
+                                       doppler_shift,
+                                       laser_beam_frequency: float,
                                        detuning: float):
-        
+
         transition_strength = self.transition_strength_table[ground_state, excited_state, polarization]
 
-        saturation_parameter = simple_elw._calculate_saturation_parameter(effective_transition_frequency=effective_transition_frequency,
-                                                         doppler_shift=doppler_shift,
-                                                         laser_beam_frequency=laser_beam_frequency,
-                                                         detuning = detuning,
-                                                         transition_strength= transition_strength,
-                                                         laser_intensity = laser_intensity,
-                                                         natural_linewidth = natural_linewidth
-                                                         )
-        
+        saturation_parameter = common._calculate_saturation_parameter(effective_transition_frequency=effective_transition_frequency,
+                                                                      doppler_shift=doppler_shift,
+                                                                      laser_beam_frequency=laser_beam_frequency,
+                                                                      detuning=detuning,
+                                                                      transition_strength=transition_strength,
+                                                                      laser_intensity=laser_intensity,
+                                                                      natural_linewidth=natural_linewidth)
+
         return saturation_parameter
 
 

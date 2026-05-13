@@ -1080,44 +1080,7 @@ def calculate_transition_frequency_shift(GS,ES,pol,B):
 
 
 
-@njit
-def _calculate_transition_rate(saturation_parameters,
-                   total_saturation_parameter,
-                   natural_linewidth,
-                   excitation_rates):
-    n_lasers = excitation_rates.shape[0]
-    n_excited = excitation_rates.shape[1]
-    for j in range(n_lasers):
-        for ex in range(n_excited):
-            for pol in range(3):
-                sat = saturation_parameters[j, ex, pol]
-                excitation_rates[j, ex, pol] = (0.5* sat * natural_linewidth) / (1.0 + total_saturation_parameter)
-
-
-
-
-@njit
-def _calculate_saturation_parameter(effective_transition_frequency: float, # in Hz
-                                    doppler_shift: float, # in rad/s
-                                    laser_beam_frequency: float, # in Hz
-                                    detuning: float, # in rad/s
-                                    transition_strength: float, 
-                                    laser_intensity: float, # in W
-                                    natural_linewidth: float):# in rad/s
-
-
-
-        laser_beam_frequency_rad = laser_beam_frequency*2*math.pi
-
-        effective_transition_frequency_rad = effective_transition_frequency*2*math.pi
-
-
-        effective_detuning =  laser_beam_frequency_rad - doppler_shift + detuning - effective_transition_frequency_rad
-
-        # Calculate Rabi frequencies (with a scaling factor from literature).
-
-        rabi_frequency = 2*math.pi * 1e6 * 11.925*4.37* transition_strength * math.sqrt(0.001*laser_intensity) # 11.925 is the reduced D2-line matrix element for Li6 (Gehm 2003)
-
-        #  Compute saturation parameters using squared effective detunings.
-        saturation_parameter = 0.5 * rabi_frequency**2 / (effective_detuning**2 + 0.25 * natural_linewidth**2)
-        return saturation_parameter
+# _calculate_excitation_rate and _calculate_saturation_parameter live in
+# src/interaction_wrappers/common.py — they are identical across all models.
+# The 18-level model previously named the rate helper `_calculate_transition_rate`;
+# it is now standardised to `_calculate_excitation_rate` for consistency.
