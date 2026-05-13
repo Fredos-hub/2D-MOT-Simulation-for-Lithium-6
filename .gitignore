@@ -11,3 +11,4 @@ plots.py
 *.json
 *.csv
 CLAUDE.md
+prototype/
