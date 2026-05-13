@@ -224,9 +224,9 @@ class LightAtomInteraction:
 
     def calculate_branching_ratio(
         self,
+        polarization: int,
         ground_state: int,
         excited_state: int,
-        polarization: int,
         magnetic_field_strength: float,
     ) -> float:
         """
