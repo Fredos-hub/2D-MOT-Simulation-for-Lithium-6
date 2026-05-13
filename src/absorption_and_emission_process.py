@@ -9,9 +9,17 @@ from numba import njit, prange,get_thread_id, get_num_threads
 import numpy as np
 import scipy.constants as scc
 import math
-from util.geometry import random_angle_in_sphere
 from util.simulation_typing import ECSLasers, ECSAtoms, MagneticField, LightAtomInteraction
 from typing import Tuple
+
+
+@njit(inline='always')
+def _advance_with_gravity(positions, velocities, atom_id, vel, dt):
+    """Translate one atom by vel·dt and apply the gravity kick to v_y."""
+    positions[atom_id, 0] += vel[0] * dt
+    positions[atom_id, 1] += vel[1] * dt
+    positions[atom_id, 2] += vel[2] * dt
+    velocities[atom_id, 1] -= scc.g * dt
 
 
 @njit(parallel=True)
@@ -34,21 +42,30 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
     n_ground_states = simulation_interaction.number_of_ground_states
     n_excited_states = simulation_interaction.number_of_excited_states
 
-    polarization_states = np.array([0, 1, 2], dtype=np.int64)
+    # Sparse per-call clock indexed by `idx`, not by `atom_id`. Avoids a
+    # zero-fill over n_atoms_total each step (was O(N_total), now O(N_alive)).
+    accumulated_times = np.zeros(atom_ids.size, dtype=np.float64)
 
-    n_atoms_total = simulation_atoms.n
-    accumulated_times = np.zeros(n_atoms_total, dtype=np.float64)
+    # Hoist jitclass attribute lookups so the inner loop touches plain arrays.
+    positions_arr = simulation_atoms.positions
+    velocities_arr = simulation_atoms.velocities
+    groundstates_arr = simulation_atoms.groundstates
+    max_step_lengths_arr = simulation_atoms.max_step_lengths
+    b_vec_arr = simulation_atoms.magnetic_field_vectors
+    b_norm_arr = simulation_atoms.magnetic_field_strength
+    time_overshoot_arr = simulation_atoms.time_overshoot
 
     # THREAD-LOCAL WORKSPACES: allocate once per call (shape = (nthreads, ...))
     nthreads = get_num_threads()
-    # per-thread arrays to avoid allocations inside loop
     work_intensity = np.empty((nthreads, n_lasers), dtype=np.float64)
     work_doppler = np.empty((nthreads, n_lasers), dtype=np.float64)
-    work_angles = np.empty((nthreads, n_lasers), dtype=np.float64)
     work_relI = np.empty((nthreads, n_lasers, 3), dtype=np.float64)
     work_sat = np.empty((nthreads, n_lasers, n_excited_states, 3), dtype=np.float64)
     work_exc_rates = np.empty((nthreads, n_lasers, n_excited_states, 3), dtype=np.float64)
-    work_exc_trans_freq = np.empty((nthreads, n_lasers, n_excited_states, 3), dtype=np.float64)
+    # Zeeman shifts depend on (gs, ex, pol, B) — independent of the laser. We
+    # precompute the effective transition frequency f₀ + Δ_Zeeman once per
+    # while-iter as a 2D table, saving n_lasers× shift evaluations.
+    work_eff_trans_freq = np.empty((nthreads, n_excited_states, 3), dtype=np.float64)
     work_branch = np.empty((nthreads, n_excited_states, n_ground_states, 3), dtype=np.float64)
 
     for idx in prange(atom_ids.size):
@@ -58,93 +75,110 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
         # local references into per-thread workspace
         intensity_at_position = work_intensity[tid]
         doppler_shifts = work_doppler[tid]
-        angles_between_field_and_lasers = work_angles[tid]
         relative_intensity_per_polarization = work_relI[tid]
         saturation_parameters = work_sat[tid]
         excitation_rates = work_exc_rates[tid]
-        excitation_transition_frequencies = work_exc_trans_freq[tid]
+        eff_trans_freq = work_eff_trans_freq[tid]
         branching_ratios = work_branch[tid]
 
-        # zero only the slices we will use (small)
-        # it's okay to leave garbage in unused entries; we'll overwrite used ones
-
         # main loop for this atom
-        while accumulated_times[atom_id] < default_timestep:
-            pos = simulation_atoms.positions[atom_id]
-            vel = simulation_atoms.velocities[atom_id]
+        while accumulated_times[idx] < default_timestep:
+            pos = positions_arr[atom_id]
+            vel = velocities_arr[atom_id]
             magnetic_field.calculate_magnetic_field(simulation_atoms, atom_id)
             magnetic_field.calculate_max_step_length(simulation_atoms, atom_id)
-            atom_ground_state = simulation_atoms.groundstates[atom_id]
-            atom_max_step_length = simulation_atoms.max_step_lengths[atom_id]
-            b_vec = simulation_atoms.magnetic_field_vectors[atom_id]
-            b_norm = simulation_atoms.magnetic_field_strength[atom_id]
+            atom_ground_state = groundstates_arr[atom_id]
+            atom_max_step_length = max_step_lengths_arr[atom_id]
+            b_vec = b_vec_arr[atom_id]
+            b_norm = b_norm_arr[atom_id]
 
-            # compute per-laser geometry and fill saturation buf while accumulating total saturation
+            # Zeeman shifts are independent of the laser — precompute the
+            # effective transition frequency once per (ex, pol) for this atom.
+            for ex in range(n_excited_states):
+                for pol in range(3):
+                    zeeman_shift = simulation_interaction.calculate_transition_frequency_shift(
+                        ground_state=atom_ground_state,
+                        excited_state=ex,
+                        polarization=pol,
+                        magnetic_field_strength=b_norm)
+                    eff_trans_freq[ex, pol] = zeeman_shift + transition_frequency
+
+            # Per-laser geometry + saturation, accumulating total saturation.
             total_saturation_parameter = 0.0
             for j in range(n_lasers):
-                intensity_at_position[j] = beam_intensity_at_position(pos,
-                                                                       lasers.origins[j],
-                                                                       lasers.normalized_directions[j],
-                                                                       lasers.beam_waists[j],
-                                                                       lasers.beam_wavelengths[j],
-                                                                       lasers.initial_intensities[j],
-                                                                       lasers.refractive_indices[j])
-                if intensity_at_position[j] > 0.0:
-                    doppler_shifts[j] = wave_vectors[j, 0] * vel[0] + wave_vectors[j, 1] * vel[1] + wave_vectors[j, 2] * vel[2]
+                laser_dir = lasers.normalized_directions[j]
+                intensity = beam_intensity_at_position(pos,
+                                                      lasers.origins[j],
+                                                      laser_dir,
+                                                      lasers.beam_waists[j],
+                                                      lasers.beam_wavelengths[j],
+                                                      lasers.initial_intensities[j],
+                                                      lasers.refractive_indices[j])
+                intensity_at_position[j] = intensity
+
+                if intensity > 0.0:
+                    doppler_shifts[j] = (wave_vectors[j, 0] * vel[0]
+                                         + wave_vectors[j, 1] * vel[1]
+                                         + wave_vectors[j, 2] * vel[2])
 
                     if b_norm <= 0.0:
-                        angles_between_field_and_lasers[j] = 0.0
+                        angle_jB = 0.0
                     else:
-                        dot = b_vec[0] * lasers.normalized_directions[j][0] + b_vec[1] * lasers.normalized_directions[j][1] + b_vec[2] * lasers.normalized_directions[j][2]
+                        dot = (b_vec[0] * laser_dir[0]
+                               + b_vec[1] * laser_dir[1]
+                               + b_vec[2] * laser_dir[2])
                         cosval = dot / b_norm
-                        # numerical safety for acos
                         if cosval > 1.0:
                             cosval = 1.0
                         elif cosval < -1.0:
                             cosval = -1.0
-                        angles_between_field_and_lasers[j] = math.acos(cosval)
+                        angle_jB = math.acos(cosval)
 
-                    squared_matrix_elements = calculate_handedness_to_polarization(angle_laser_magnetic_field=angles_between_field_and_lasers[j],
-                                                                                   handedness=laser_handedness[j])
+                    sq0, sq1, sq2 = calculate_handedness_to_polarization(
+                        angle_jB, laser_handedness[j])
 
-                    for excited_state in range(n_excited_states):
-                        for pol in polarization_states:
-                            relI = squared_matrix_elements[pol] * intensity_at_position[j]
-                            relative_intensity_per_polarization[j, pol] = relI
+                    # relI depends only on (j, pol), not on ex — hoist out.
+                    relI0 = sq0 * intensity
+                    relI1 = sq1 * intensity
+                    relI2 = sq2 * intensity
+                    relative_intensity_per_polarization[j, 0] = relI0
+                    relative_intensity_per_polarization[j, 1] = relI1
+                    relative_intensity_per_polarization[j, 2] = relI2
 
-                            zeeman_shift = simulation_interaction.calculate_transition_frequency_shift(
-                                ground_state=atom_ground_state,
-                                excited_state=excited_state,
-                                polarization=pol,
-                                magnetic_field_strength=b_norm)
+                    doppler_j = doppler_shifts[j]
+                    laser_freq_j = lasers.beam_frequencies[j]
+                    detuning_j = lasers.detunings[j]
 
-                            excitation_transition_frequencies[j, excited_state, pol] = zeeman_shift + transition_frequency
-
+                    for ex in range(n_excited_states):
+                        for pol in range(3):
+                            if pol == 0:
+                                relI = relI0
+                            elif pol == 1:
+                                relI = relI1
+                            else:
+                                relI = relI2
                             sat = simulation_interaction.calculate_saturation_parameter(
                                 polarization=pol,
                                 magnetic_field_strength=b_norm,
                                 ground_state=atom_ground_state,
-                                excited_state=excited_state,
+                                excited_state=ex,
                                 laser_intensity=relI,
                                 natural_linewidth=natural_linewidth,
                                 saturation_intensity=saturation_intensity,
-                                effective_transition_frequency=excitation_transition_frequencies[j, excited_state, pol],
-                                doppler_shift=doppler_shifts[j],
-                                laser_beam_frequency=lasers.beam_frequencies[j],
-                                detuning=lasers.detunings[j])
-                            
-
-                            saturation_parameters[j, excited_state, pol] = sat
+                                effective_transition_frequency=eff_trans_freq[ex, pol],
+                                doppler_shift=doppler_j,
+                                laser_beam_frequency=laser_freq_j,
+                                detuning=detuning_j)
+                            saturation_parameters[j, ex, pol] = sat
                             total_saturation_parameter += sat
-
-
                 else:
                     doppler_shifts[j] = 0.0
-                    angles_between_field_and_lasers[j] = 0.0
-                    for excited_state in range(n_excited_states):
-                        for pol in polarization_states:
-                            relative_intensity_per_polarization[j, pol] = 0.0
-                            saturation_parameters[j, excited_state, pol] = 0.0
+                    relative_intensity_per_polarization[j, 0] = 0.0
+                    relative_intensity_per_polarization[j, 1] = 0.0
+                    relative_intensity_per_polarization[j, 2] = 0.0
+                    for ex in range(n_excited_states):
+                        for pol in range(3):
+                            saturation_parameters[j, ex, pol] = 0.0
 
             # Compute excitation rates.
             simulation_interaction.calculate_rate(saturation_parameters, total_saturation_parameter, natural_linewidth, excitation_rates)
@@ -153,13 +187,13 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
             total_excitation_rate = 0.0
             for j in range(n_lasers):
                 for ex in range(n_excited_states):
-                    for pol in polarization_states:
+                    for pol in range(3):
                         total_excitation_rate += excitation_rates[j, ex, pol]
 
-            remaining_time = default_timestep - accumulated_times[atom_id]
+            remaining_time = default_timestep - accumulated_times[idx]
 
             # pending overshoot
-            pending = simulation_atoms.time_overshoot[atom_id]
+            pending = time_overshoot_arr[atom_id]
             has_pending = pending > 0.0
 
             if (total_excitation_rate <= 0.0) and (not has_pending):
@@ -167,14 +201,13 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                 motion_dt = magnetic_field.calculate_max_time_step(atom_max_step_length, vel)
                 dt = motion_dt
                 if dt > remaining_time:
-                    simulation_atoms.time_overshoot[atom_id] = 0.0
+                    time_overshoot_arr[atom_id] = 0.0
                     dt = remaining_time
-                    accumulated_times[atom_id] = default_timestep
+                    accumulated_times[idx] = default_timestep
                 else:
-                    accumulated_times[atom_id] += dt
+                    accumulated_times[idx] += dt
 
-                simulation_atoms.positions[atom_id] += vel * dt
-                simulation_atoms.velocities[atom_id] += np.array([0.0, -scc.g * dt, 0.0], dtype=np.float64)
+                _advance_with_gravity(positions_arr, velocities_arr, atom_id, vel, dt)
                 continue
 
             # choose event time (use pending or sample)
@@ -192,66 +225,74 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                 dt = motion_dt
                 if dt > remaining_time:
                     dt = remaining_time
-                    accumulated_times[atom_id] = default_timestep
+                    accumulated_times[idx] = default_timestep
                 else:
-                    accumulated_times[atom_id] += dt
+                    accumulated_times[idx] += dt
 
-                simulation_atoms.positions[atom_id] += vel * dt
-                simulation_atoms.velocities[atom_id] += np.array([0.0, -scc.g * dt, 0.0], dtype=np.float64)
+                _advance_with_gravity(positions_arr, velocities_arr, atom_id, vel, dt)
 
                 if has_pending:
                     new_pending = pending - dt
                     if new_pending < 0.0:
                         new_pending = 0.0
-                    simulation_atoms.time_overshoot[atom_id] = new_pending
+                    time_overshoot_arr[atom_id] = new_pending
                 else:
                     if t_event > dt:
-                        simulation_atoms.time_overshoot[atom_id] = t_event - dt
+                        time_overshoot_arr[atom_id] = t_event - dt
                     else:
-                        simulation_atoms.time_overshoot[atom_id] = 0.0
+                        time_overshoot_arr[atom_id] = 0.0
 
                 continue
 
             # event valid
             if t_event <= remaining_time:
-                simulation_atoms.positions[atom_id] += vel * t_event
-                simulation_atoms.velocities[atom_id] += np.array([0.0, -scc.g * t_event, 0.0], dtype=np.float64)
+                _advance_with_gravity(positions_arr, velocities_arr, atom_id, vel, t_event)
 
                 excitation_counter[atom_id] += 1
-                accumulated_times[atom_id] += t_event
-                simulation_atoms.time_overshoot[atom_id] = 0.0
+                accumulated_times[idx] += t_event
+                time_overshoot_arr[atom_id] = 0.0
 
                 # fast flattened selection over the same excitation_rates buffer
                 idx_laser, atom_excited_state, exciting_polarization = determine_exciting_laser_flat(excitation_rates, total_excitation_rate)
 
                 excitation_hist[atom_ground_state, exciting_polarization] += 1
 
-
                 # compute branching ratios for selected excited state
                 for gs in range(n_ground_states):
-                    for pol in polarization_states:
+                    for pol in range(3):
                         branching_ratios[atom_excited_state, gs, pol] = simulation_interaction.calculate_branching_ratio(ground_state=gs, excited_state=atom_excited_state, polarization=pol, magnetic_field_strength=b_norm)
 
                 # deexcite
                 new_ground, emitted_pol = determine_deexcitation_transition(branching_probs=branching_ratios[atom_excited_state])
-                simulation_atoms.groundstates[atom_id] = new_ground
+                groundstates_arr[atom_id] = new_ground
 
-                # recoil
-                absorption_recoil = (scc.hbar / atom_mass) * wave_vectors[idx_laser]
-                emission_dir = random_angle_in_sphere()
-                k_mag = (scc.h * transition_frequency) / scc.c
-                emission_recoil = (1.0 / atom_mass) * emission_dir * k_mag
-                simulation_atoms.velocities[atom_id] += absorption_recoil + emission_recoil
+                # Recoil — combined absorption + spontaneous emission. Sampling
+                # of the spontaneous-emission unit vector is inlined to avoid
+                # the 3-array allocation `random_angle_in_sphere` would do.
+                u = np.random.random()
+                v = np.random.random()
+                ct = 2.0 * u - 1.0
+                st = math.sqrt(1.0 - ct * ct)
+                phi = 2.0 * math.pi * v
+                em_x = st * math.cos(phi)
+                em_y = st * math.sin(phi)
+                em_z = ct
+
+                abs_coef = scc.hbar / atom_mass
+                em_coef = (scc.h * transition_frequency) / (scc.c * atom_mass)
+                wv = wave_vectors[idx_laser]
+                velocities_arr[atom_id, 0] += abs_coef * wv[0] + em_coef * em_x
+                velocities_arr[atom_id, 1] += abs_coef * wv[1] + em_coef * em_y
+                velocities_arr[atom_id, 2] += abs_coef * wv[2] + em_coef * em_z
 
                 continue
             else:
                 # event beyond this default timestep: store overshoot
                 delta = remaining_time
-                simulation_atoms.positions[atom_id] += vel * delta
-                simulation_atoms.velocities[atom_id] += np.array([0.0, -scc.g * delta, 0.0], dtype=np.float64)
+                _advance_with_gravity(positions_arr, velocities_arr, atom_id, vel, delta)
 
-                simulation_atoms.time_overshoot[atom_id] = t_event - delta
-                accumulated_times[atom_id] = default_timestep
+                time_overshoot_arr[atom_id] = t_event - delta
+                accumulated_times[idx] = default_timestep
                 # will be handled next step
 
         # end while for atom
@@ -271,53 +312,30 @@ def beam_intensity_at_position(atom_position: np.ndarray,
                                refractive_index: float) -> float:
     """
     Calculate the beam intensity at the given atom position for a Gaussian beam.
-    Returns 0 if the atom is outside the beam.
 
-    Parameters
-    ----------
-    atom_position : np.ndarray
-        Position of the atom.
-    laser_origin : np.ndarray
-        Origin (starting point) of the laser beam.
-    laser_direction : np.ndarray
-        Normalized propagation direction of the laser beam.
-    beam_waist : float
-        Beam waist (radius at focus) of the laser.
-    beam_wavelength : float
-        Wavelength of the laser beam.
-    initial_intensity : float
-        Peak intensity at the beam center.
-    refractive_index : float
-        Refractive index in the medium.
-
-    Returns
-    -------
-    float
-        Local intensity of the laser beam at atom_position if the atom is
-        within the beam (i.e. radial distance less than the local beam width),
-        or 0 otherwise.
+    Uses the identity radial² = |diff|² − axial² so we never materialise the
+    cross product or call sqrt for the radial component, and we keep width²
+    instead of width to skip another sqrt.
     """
-    # Calculate vector from laser origin to atom position.
-    diff = atom_position - laser_origin
+    dx = atom_position[0] - laser_origin[0]
+    dy = atom_position[1] - laser_origin[1]
+    dz = atom_position[2] - laser_origin[2]
 
-    # Compute the radial distance: norm(cross(diff, laser_direction))
-    radial_distance = np.linalg.norm(np.cross(diff, laser_direction))
+    axial_distance = (dx * laser_direction[0]
+                      + dy * laser_direction[1]
+                      + dz * laser_direction[2])
 
-    # Axial distance along the beam direction.
-    axial_distance =  diff[0]*laser_direction[0] + diff[1]*laser_direction[1] + diff[2]*laser_direction[2]
+    diff_sq = dx * dx + dy * dy + dz * dz
+    radial_sq = diff_sq - axial_distance * axial_distance
+    if radial_sq < 0.0:
+        radial_sq = 0.0  # guard against rounding when diff is nearly axial
 
-    # Calculate the Rayleigh range.
+    waist_sq = beam_waist * beam_waist
+    rayleigh_range = (math.pi * waist_sq * refractive_index) / beam_wavelength
+    z_over_zR = axial_distance / rayleigh_range
+    width_sq = waist_sq * (1.0 + z_over_zR * z_over_zR)
 
-    rayleigh_range = (math.pi * beam_waist**2 * refractive_index) / (beam_wavelength)
-
-    # Compute the beam width at the atom's axial position.
-    width_at_position = beam_waist * math.sqrt(1 + (axial_distance / (rayleigh_range))**2)
-
-    # If the atom lies within the local beam width, compute intensity.
-
-
-    intensity = initial_intensity * math.exp(-2 * (radial_distance / (width_at_position))**2)
-    return intensity
+    return initial_intensity * math.exp(-2.0 * radial_sq / width_sq)
 
 
 
@@ -377,43 +395,21 @@ def determine_deexcitation_transition(branching_probs: np.ndarray) -> Tuple[int,
 
 
 
-@njit
-def calculate_handedness_to_polarization(angle_laser_magnetic_field: float, 
-                                       handedness: int) -> np.ndarray:
+@njit(inline='always')
+def calculate_handedness_to_polarization(angle_laser_magnetic_field: float,
+                                         handedness: int):
     """
-    Convert handedness (handedness of laser in lab frame) to the corresponding polarization vector.
-
-    Parameters
-    ----------
-    angle_laser_magnetic_field : float
-        The angle (in radians) between the laser propagation direction and the magnetic field.
-    polarization : int
-        The polarization state (0 for sigma-, 1 for pi, 2 for sigma+).
-
-    Returns
-    -------
-    np.ndarray
-        A 3D vector representing the polarization direction in Cartesian coordinates.
+    Squared dipole matrix elements (σ⁻, π, σ⁺) for a probe beam with the given
+    handedness, given the angle θ between propagation direction and the local
+    B-axis. Returns a tuple of three scalars to avoid heap allocation in the
+    inner loop.
     """
+    c = math.cos(angle_laser_magnetic_field)
+    s2 = math.sin(angle_laser_magnetic_field) ** 2
 
-    projected_polarizations = np.zeros(3, dtype=np.float64)
     if handedness == 1:
-
-        #(left-handed):
-        projected_polarizations[0] = 1/4 * (1 - math.cos(angle_laser_magnetic_field))**2
-        projected_polarizations[1] = 1/2 * math.sin(angle_laser_magnetic_field)**2
-        projected_polarizations[2] = 1/4 * (1 + math.cos(angle_laser_magnetic_field))**2
-
+        return 0.25 * (1.0 - c) ** 2, 0.5 * s2, 0.25 * (1.0 + c) ** 2
     elif handedness == -1:
-        #(right handed):
-        projected_polarizations[0] = 1/4 * (1 + math.cos(angle_laser_magnetic_field))**2
-        projected_polarizations[1] = 1/2 * math.sin(angle_laser_magnetic_field)**2
-        projected_polarizations[2] = 1/4 * (1 - math.cos(angle_laser_magnetic_field))**2
-
-    elif handedness == 0:
-        #(linear)
-        projected_polarizations[0] = -1/2 * math.sin(angle_laser_magnetic_field)**2
-        projected_polarizations[1] = math.cos(angle_laser_magnetic_field)**2
-        projected_polarizations[2] = 1/2 * math.sin(angle_laser_magnetic_field)**2
-
-    return projected_polarizations
+        return 0.25 * (1.0 + c) ** 2, 0.5 * s2, 0.25 * (1.0 - c) ** 2
+    # handedness == 0: linear polarisation along k̂. σ± = ½ sin²θ, π = cos²θ.
+    return 0.5 * s2, c * c, 0.5 * s2
