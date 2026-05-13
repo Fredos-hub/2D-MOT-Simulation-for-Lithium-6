@@ -1,7 +1,7 @@
 {
     "Atoms": {
         "species": "Li6",
-        "number": 20,
+        "number": 5000,
         "start_position": [
             0.0,
             -0.02,
@@ -136,7 +136,7 @@
             "beam_power": 0.12,
             "beam_frequency": 446799571.079,
             "detuning": -7.0,
-            "handedness": -1,
+            "handedness": 1,
             "type": "trap"
         },
         {
@@ -172,7 +172,7 @@
             "beam_power": 0.12,
             "beam_frequency": 446799571.079,
             "detuning": -7.0,
-            "handedness": 1,
+            "handedness": -1,
             "type": "trap"
         },
         {
@@ -226,7 +226,7 @@
             "beam_power": 0.08,
             "beam_frequency": 446799802.175,
             "detuning": -5.0,
-            "handedness": -1,
+            "handedness": 1,
             "type": "repump"
         },
         {
@@ -244,7 +244,7 @@
             "beam_power": 0.08,
             "beam_frequency": 446799802.175,
             "detuning": -5.0,
-            "handedness": 1,
+            "handedness": -1,
             "type": "repump"
         }
     ],
@@ -256,7 +256,7 @@
     "Simulation": {
         "interaction": "Lithium18LevelInteraction",
         "step_resolution": 1,
-        "simulated_time": 4.0,
+        "simulated_time": 3.0,
         "random_seed": 15,
         "rate_mode": false,
         "flux": 6.7,
