@@ -214,8 +214,6 @@ class IncrementorTab(QWidget):
                             cfg = json.loads(json.dumps(templ))
                             cfg['Atoms']['start_velocity'] = [vx, vy, vz]
                             json_fname = f"{base}_vx{vx:.1f}_vy{vy:.1f}_vz{vz:.1f}.json"
-                            csv_fname = json_fname.replace('.json', '.csv')
-                            cfg['output_file'] = csv_fname
                             Path(target_dir, json_fname).write_text(json.dumps(cfg, indent=4))
             else:
                 scopes = [self.waist_scope, self.power_scope, self.detune_scope]
@@ -241,7 +239,5 @@ class IncrementorTab(QWidget):
                     else:
                         name_key = key_map[idx]
                     json_fname = f"{base}_{name_key}_{val:.1f}{unit}.json"
-                    csv_fname = json_fname.replace('.json', '.csv')
-                    cfg['Simulation']['output_file'] = csv_fname
                     Path(target_dir, json_fname).write_text(json.dumps(cfg, indent=4))
         QMessageBox.information(self, "Done", f"Generated {total} files.")
