@@ -11,6 +11,7 @@ from GUI.toolbar import ToolBar
 from GUI.menu_bar import CustomMenuBar
 from GUI.widgets.sample_generator import SampleGeneratorTab
 from GUI.widgets.incrementor_tab import IncrementorTab
+from GUI.widgets.spectrum_tab import SpectrumTab
 
 
 class MainWindow(QMainWindow):
@@ -72,11 +73,13 @@ class MainWindow(QMainWindow):
         # Tab for generating parameter files quickly
         self.incrementorTab = IncrementorTab(self)
         self.plottingTab = PlottingTab(self)
+        self.spectrumTab = SpectrumTab(self)
 
         self.mainTabWidget.addTab(self.simulationCockpitTab, "Simulation Cockpit")
         self.mainTabWidget.addTab(self.SampleGeneratorTab, "Sample Generator")
         self.mainTabWidget.addTab(self.incrementorTab, "Incrementor")
         self.mainTabWidget.addTab(self.plottingTab, "Plotting")
+        self.mainTabWidget.addTab(self.spectrumTab, "Spectrum")
 
         # ToolBar button wiring
         self.toolBar.load_action.triggered.connect(self.simulationCockpitTab.open_directory)
