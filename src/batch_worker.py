@@ -9,6 +9,12 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from src.parameters import Parameters, ParameterError
 from util.simulation_typing import ECSAtoms
 
+
+# Repo root: this file lives at <repo>/src/batch_worker.py, so go up two levels.
+# Used to anchor the simulation_results directory regardless of CWD or the
+# location of the setup JSON files.
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+
 class BatchSimulationWorker(QThread):
     progressChanged = pyqtSignal(int)
     statusChanged = pyqtSignal(str)
@@ -41,11 +47,10 @@ class BatchSimulationWorker(QThread):
     # -----------------------
     def ensure_batch_root_and_folder(self):
         """
-        Ensure `simulation_results` exists one level above self.directory,
-        and create a dated batch folder named DD_MM_YY_NUM (NUM auto-increments).
+        Ensure `simulation_results` exists in the repo root, and create a dated
+        batch folder named DD_MM_YY_NUM (NUM auto-increments).
         """
-        workspace = os.path.abspath(os.path.join(self.directory, ".."))
-        batch_root = os.path.join(workspace, "simulation_results")
+        batch_root = os.path.join(REPO_ROOT, "simulation_results")
         os.makedirs(batch_root, exist_ok=True)
 
         today = datetime.now().strftime("%d_%m_%y")  # DD_MM_YY
