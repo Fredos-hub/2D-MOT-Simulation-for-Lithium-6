@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
     QWidget, QTableWidget, QTableWidgetItem, QPushButton, QCheckBox,
     QVBoxLayout, QMenu, QAction, QInputDialog, QMessageBox, QHeaderView,
     QStyle, QStyleOptionButton, QStyleOptionViewItem, QApplication,
-    QStyledItemDelegate
+    QStyledItemDelegate, QAbstractItemView
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QEvent, QRect
 from PyQt5.QtGui import QBrush, QColor
@@ -61,6 +61,65 @@ class CenteredCheckBoxDelegate(QStyledItemDelegate):
         return False
 
 
+class _DraggableTable(QTableWidget):
+    """QTableWidget with reliable single-row drag-and-drop reordering."""
+    rowsReordered = pyqtSignal()
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.viewport().setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+        self.setDragDropOverwriteMode(False)
+        self.setDefaultDropAction(Qt.MoveAction)
+        self.setDropIndicatorShown(True)
+
+    def _drop_row(self, event) -> int:
+        """Row index where the dragged row should land."""
+        pos = event.pos()
+        index = self.indexAt(pos)
+        if not index.isValid():
+            return self.rowCount()
+        rect = self.visualRect(index)
+        return index.row() + 1 if pos.y() >= rect.center().y() else index.row()
+
+    def dropEvent(self, event):
+        if event.source() is not self:
+            super().dropEvent(event)
+            return
+        src_rows = sorted({i.row() for i in self.selectedIndexes()})
+        if not src_rows:
+            event.ignore()
+            return
+        drop = self._drop_row(event)
+        # Clone the items so we can re-insert after removal.
+        snapshots = []
+        for r in src_rows:
+            row_items = []
+            for c in range(self.columnCount()):
+                src = self.item(r, c)
+                row_items.append(QTableWidgetItem(src) if src else QTableWidgetItem())
+            snapshots.append(row_items)
+        self.blockSignals(True)
+        try:
+            for r in reversed(src_rows):
+                self.removeRow(r)
+                if r < drop:
+                    drop -= 1
+            drop = max(0, min(drop, self.rowCount()))
+            for i, items in enumerate(snapshots):
+                self.insertRow(drop + i)
+                for c, it in enumerate(items):
+                    self.setItem(drop + i, c, it)
+        finally:
+            self.blockSignals(False)
+        self.clearSelection()
+        self.selectRow(drop)
+        event.accept()
+        self.rowsReordered.emit()
+
+
 class FileTableWidget(QWidget):
     """
     A widget that displays a directory of JSON files in a table with
@@ -80,10 +139,11 @@ class FileTableWidget(QWidget):
         self._validation_state: dict = {}         # filename -> [] (valid) | [errors] | None (unknown)
         self._sim_state: dict = {}                # filename -> FileSimState | None
         self._updating_display = False            # re-entrancy guard for itemChanged
+        self._order: list = []                    # session-only user-defined row order
         self._setup_ui()
 
     def _setup_ui(self):
-        self.table = QTableWidget(0, 3, self)
+        self.table = _DraggableTable(0, 3, self)
         self.table.setHorizontalHeaderLabels([
             "Loaded File", "Ignore", "Status"
         ])
@@ -106,6 +166,7 @@ class FileTableWidget(QWidget):
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         self.table.itemDoubleClicked.connect(self._on_double_clicked)
         self.table.itemChanged.connect(self._on_item_changed)
+        self.table.rowsReordered.connect(self._on_rows_reordered)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.table)
@@ -242,11 +303,23 @@ class FileTableWidget(QWidget):
 
 
 
+    def _on_rows_reordered(self):
+        """Sync session order list with the table's current row order."""
+        self._order = [self.table.item(r, 0).text()
+                       for r in range(self.table.rowCount())
+                       if self.table.item(r, 0)]
+
     def refresh_table(self):
         if not self._current_dir:
             return
-        files = [f for f in os.listdir(self._current_dir)
-                 if f.lower().endswith('.json')]
+        on_disk = [f for f in os.listdir(self._current_dir)
+                   if f.lower().endswith('.json')]
+        on_disk_set = set(on_disk)
+        # Preserve user-defined order; append new files (alphabetical) at the end
+        kept = [f for f in self._order if f in on_disk_set]
+        new = sorted(f for f in on_disk if f not in kept)
+        files = kept + new
+        self._order = files[:]
 
         self.table.blockSignals(True)
         self.table.setRowCount(0)
@@ -362,6 +435,8 @@ class FileTableWidget(QWidget):
             QMessageBox.critical(self, "Error",
                                  f"Failed to rename: {e}")
             return
+        if old in self._order:
+            self._order[self._order.index(old)] = new_name
         self.fileRenamed.emit(old, new_name)
         self.refresh_table()
 
@@ -404,6 +479,8 @@ class FileTableWidget(QWidget):
             QMessageBox.critical(self, "Error",
                                  f"Failed to copy: {e}")
             return
+        if original in self._order:
+            self._order.insert(self._order.index(original) + 1, copy_name)
         self.fileCopied.emit(original, copy_name)
         self.refresh_table()
 
