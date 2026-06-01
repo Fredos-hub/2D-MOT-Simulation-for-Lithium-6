@@ -418,7 +418,7 @@ class SimpleEighteenLevelInteraction:
 
         # Lande g-factors for ground and excited states mapped by index.
         self.ground_gf = np.array([-0.6667, 0.6667, -0.6667, 0.6667, 0.6667, 0.6667], dtype=np.float32)  # gF values for ground states
-        self.excited_gf = np.array([0.8004, 0.9783, 0.8004, 2.2233, 0.9783, 0.8004, 0.9783, 2.2233, 0.8004, 0.9783, 0.8004, 0.8004], dtype=np.float32)  # gF values for excited states])
+        self.excited_gf = np.array([0.8004, 0.9783, 0.8004, 1.1111, 0.9783, 0.8004, 0.9783, 1.1111, 0.8004, 0.9783, 0.8004, 0.8004], dtype=np.float32)  # gF values for excited states (F=1/2 entries use Landé 10/9)
         
 
 
@@ -570,5 +570,3 @@ class SimpleEighteenLevelInteraction:
 
         # attach to instance 
         self.transition_strength_table = ts
-
-
