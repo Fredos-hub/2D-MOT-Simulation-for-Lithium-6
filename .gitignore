@@ -12,3 +12,7 @@ plots.py
 *.csv
 CLAUDE.md
 prototype/
+heatmaps/
+pushbeam_histograms/
+pushbeam_detuning_histograms.py
+trapped_atoms_heatmap.py
