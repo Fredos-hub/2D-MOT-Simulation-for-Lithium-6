@@ -1,13 +1,16 @@
 import json
+from itertools import product
 from pathlib import Path
 from PyQt5.QtCore import QLocale, Qt
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QPushButton, QListWidget,
     QFileDialog, QRadioButton, QButtonGroup, QDoubleSpinBox, QMessageBox,
-    QFormLayout, QComboBox, QSizePolicy
+    QFormLayout, QComboBox, QSizePolicy, QListWidgetItem
 )
 
 from GUI.widgets.vector_input_widget import VectorInputWidget
+
+_SCOPE_LABEL = {0: "All", 1: "Trap", 2: "Repump"}
 
 class IncrementorTab(QWidget):
     def __init__(self, parent=None):
@@ -17,8 +20,10 @@ class IncrementorTab(QWidget):
     def _init_ui(self):
         main_layout = QHBoxLayout(self)
 
-        # --- Left panel: settings ---
-        settings_box = QGroupBox("Increment Settings")
+        # --- Left column: settings + queue + generate ---
+        left_col = QVBoxLayout()
+
+        settings_box = QGroupBox("Configure Sweep")
         settings_layout = QVBoxLayout(settings_box)
         settings_layout.setSpacing(8)  # tighter spacing between sections
 
@@ -107,12 +112,34 @@ class IncrementorTab(QWidget):
         detune_layout.addRow("Step(Γ):", self.step_detune)
         settings_layout.addWidget(self.detune_group)
 
-        # Generate
+        # Add Sweep
+        self.add_sweep_btn = QPushButton("Add Sweep")
+        self.add_sweep_btn.clicked.connect(self._on_add_sweep)
+        settings_layout.addWidget(self.add_sweep_btn)
+
+        left_col.addWidget(settings_box)
+
+        # ---- Queue box ----
+        queue_box = QGroupBox("Queued Sweeps")
+        queue_layout = QVBoxLayout(queue_box)
+        self.queue_list = QListWidget()
+        queue_layout.addWidget(self.queue_list)
+        q_btns = QHBoxLayout()
+        self.remove_sweep_btn = QPushButton("Remove Selected")
+        self.clear_sweeps_btn = QPushButton("Clear All")
+        self.remove_sweep_btn.clicked.connect(self._on_remove_sweep)
+        self.clear_sweeps_btn.clicked.connect(self._on_clear_sweeps)
+        q_btns.addWidget(self.remove_sweep_btn)
+        q_btns.addWidget(self.clear_sweeps_btn)
+        queue_layout.addLayout(q_btns)
+        left_col.addWidget(queue_box)
+
+        # Generate button at the very bottom of the left column
         self.generate_btn = QPushButton("Generate Files")
         self.generate_btn.clicked.connect(self._on_generate)
-        settings_layout.addWidget(self.generate_btn)
+        left_col.addWidget(self.generate_btn)
 
-        main_layout.addWidget(settings_box)
+        main_layout.addLayout(left_col)
 
         # --- Right panel: files ---
         files_box = QGroupBox("JSON Files")
@@ -135,12 +162,18 @@ class IncrementorTab(QWidget):
     def _show_help(self):
         QMessageBox.information(
             self, "Incrementor Help",
-            "This tab allows you to generate variations of your JSON configurations by sweeping either atom start velocities or laser parameters.\n\n"
-            "• Select one or more JSON files on the right.\n"
-            "• Choose a mode on the left: vector sweep (velocity) or scalar sweep (waist, power, detuning).\n"
-            "• Enter ranges: For velocity, specify From/To/Step for each component; leave Step=0 to fix that component.\n"
-            "• For lasers, pick a scope (All/Trap/Repump) and set From/To/Step.\n"
-            "• Click Generate and pick a target folder—files will be output with the parameter values in their names."
+            "Generate variations of JSON configs by sweeping atom velocity or "
+            "laser parameters along one or more axes.\n\n"
+            "Workflow:\n"
+            "• Add the JSON template files on the right.\n"
+            "• On the left, configure a sweep (velocity vx/vy/vz, or laser waist/power/detuning).\n"
+            "• Click Add Sweep → it appears in the Queued Sweeps list.\n"
+            "• Repeat for any further axes you want combined.\n"
+            "• Click Generate Files → produces the Cartesian product:\n"
+            "      len(files) × ∏ (values per queued sweep)\n\n"
+            "Velocity: each axis with Step > 0 becomes its own queued entry (vx, vy, vz independent).\n"
+            "Laser sweeps: conflict if same parameter+scope, or if one is All and the other is Trap/Repump only.\n"
+            "Generate refuses an empty queue."
         )
 
     def _add_files(self):
@@ -160,84 +193,200 @@ class IncrementorTab(QWidget):
         for i, grp in enumerate(groups): grp.setEnabled(i == sel)
         for i in (1,2,3): scopes[i].setEnabled(i == sel)
 
+    # ---------------- Sweep queue ----------------
+
+    def _queued_sweeps(self):
+        return [self.queue_list.item(i).data(Qt.UserRole)
+                for i in range(self.queue_list.count())]
+
+    @staticmethod
+    def _range_values(f, t, s):
+        if s <= 0 or t < f:
+            return []
+        n = int((t - f) / s) + 1
+        return [f + k * s for k in range(n)]
+
+    def _on_add_sweep(self):
+        idx = self.radio_group.checkedId()
+        if idx == 0:
+            self._add_velocity_sweeps()
+        else:
+            self._add_laser_sweep(idx)
+
+    def _add_velocity_sweeps(self):
+        froms = [float(e.text()) for e in self.from_vec.edits]
+        tos   = [float(e.text()) for e in self.to_vec.edits]
+        steps = [float(e.text()) for e in self.step_vec.edits]
+        axis_kinds = ('vx', 'vy', 'vz')
+        candidates = []
+        for f, t, s, kind in zip(froms, tos, steps, axis_kinds):
+            if s <= 0:
+                continue
+            vals = self._range_values(f, t, s)
+            if not vals:
+                continue
+            candidates.append({"kind": kind, "scope": None, "values": vals,
+                               "from": f, "to": t, "step": s})
+        if not candidates:
+            QMessageBox.warning(self, "Nothing to add",
+                                "No velocity axis has Step > 0 with From ≤ To.")
+            return
+        existing = self._queued_sweeps()
+        conflicts = [c['kind'] for c in candidates if self._conflicts(existing, c)]
+        if conflicts:
+            QMessageBox.warning(self, "Conflict",
+                                f"Already queued: {', '.join(conflicts)}. "
+                                f"Remove the existing entries first.")
+            return
+        for c in candidates:
+            self._enqueue(c)
+
+    def _add_laser_sweep(self, idx):
+        widget_map = {
+            1: (self.from_waist,  self.to_waist,  self.step_waist,  self.waist_scope,  'waist'),
+            2: (self.from_power,  self.to_power,  self.step_power,  self.power_scope,  'power'),
+            3: (self.from_detune, self.to_detune, self.step_detune, self.detune_scope, 'detuning'),
+        }
+        f_w, t_w, s_w, scope_w, kind = widget_map[idx]
+        f, t, s = f_w.value(), t_w.value(), s_w.value()
+        vals = self._range_values(f, t, s)
+        if not vals:
+            QMessageBox.warning(self, "Invalid range",
+                                "Check that From ≤ To and Step > 0.")
+            return
+        sweep = {"kind": kind, "scope": scope_w.currentIndex(),
+                 "values": vals, "from": f, "to": t, "step": s}
+        if self._conflicts(self._queued_sweeps(), sweep):
+            QMessageBox.warning(
+                self, "Conflict",
+                f"A {kind} sweep with overlapping scope is already queued. "
+                f"Remove it first or pick a non-overlapping scope."
+            )
+            return
+        self._enqueue(sweep)
+
+    def _enqueue(self, sweep):
+        item = QListWidgetItem(self._format_label(sweep))
+        item.setData(Qt.UserRole, sweep)
+        self.queue_list.addItem(item)
+
+    def _on_remove_sweep(self):
+        for item in self.queue_list.selectedItems():
+            self.queue_list.takeItem(self.queue_list.row(item))
+
+    def _on_clear_sweeps(self):
+        self.queue_list.clear()
+
+    @staticmethod
+    def _conflicts(existing, new):
+        for e in existing:
+            if e['kind'] != new['kind']:
+                continue
+            if new['kind'] in ('vx', 'vy', 'vz'):
+                return True
+            if e['scope'] == new['scope']:
+                return True
+            if 0 in (e['scope'], new['scope']):   # "All" overlaps everything
+                return True
+        return False
+
+    @staticmethod
+    def _format_label(sweep):
+        k = sweep['kind']
+        n = len(sweep['values'])
+        rng = f"{sweep['from']} → {sweep['to']} step {sweep['step']}"
+        if k in ('vx', 'vy', 'vz'):
+            return f"Velocity · {k} · {rng}  ({n} vals)"
+        unit = {'waist': 'mm', 'power': 'mW', 'detuning': 'Γ'}[k]
+        scope = _SCOPE_LABEL.get(sweep['scope'], '?')
+        return f"{k.capitalize()} · {scope} · {rng} {unit}  ({n} vals)"
+
+    @staticmethod
+    def _apply_sweep(cfg, sweep, value):
+        k = sweep['kind']
+        if k in ('vx', 'vy', 'vz'):
+            axis = {'vx': 0, 'vy': 1, 'vz': 2}[k]
+            atoms = cfg.setdefault('Atoms', {})
+            sv = list(atoms.get('start_velocity', [0.0, 0.0, 0.0]))
+            sv += [0.0] * max(0, 3 - len(sv))
+            sv[axis] = value
+            atoms['start_velocity'] = sv
+            return
+        key = {'waist': 'waist', 'power': 'beam_power', 'detuning': 'detuning'}[k]
+        div = {'waist': 1e3, 'power': 1e3, 'detuning': 1.0}[k]
+        scope = sweep['scope']
+        for las in cfg.get('Lasers', []):
+            typ = las.get('type', '')
+            if scope == 1 and typ != 'trap':
+                continue
+            if scope == 2 and typ != 'repump':
+                continue
+            las[key] = value / div
+
+    @staticmethod
+    def _tag_for(sweep, value):
+        k = sweep['kind']
+        if k == 'vx': return f"vx{value:.1f}"
+        if k == 'vy': return f"vy{value:.1f}"
+        if k == 'vz': return f"vz{value:.1f}"
+        unit = {'waist': 'mm', 'power': 'mW', 'detuning': 'Gamma'}[k]
+        name = {'waist': 'waist', 'power': 'beam_power', 'detuning': 'detuning'}[k]
+        scope = sweep['scope']
+        if k == 'detuning' and scope in (1, 2):
+            prefix = 'trap' if scope == 1 else 'repump'
+            return f"{prefix}_{value:.1f}{unit}"
+        if scope == 0:
+            return f"{name}_{value:.1f}{unit}"
+        scope_prefix = 'trap' if scope == 1 else 'repump'
+        return f"{scope_prefix}_{name}_{value:.1f}{unit}"
+
+    # ---------------- Generate ----------------
+
     def _on_generate(self):
-        # 1) Gather files
         files = [self.file_list.item(i).text() for i in range(self.file_list.count())]
         if not files:
             QMessageBox.warning(self, "No files", "Please add at least one JSON file.")
             return
 
-        # 2) Mode and count
-        idx = self.radio_group.checkedId()
-        if idx == 0:
-            from_vals = [float(e.text()) for e in self.from_vec.edits]
-            to_vals   = [float(e.text()) for e in self.to_vec.edits]
-            step_vals = [float(e.text()) for e in self.step_vec.edits]
-            value_lists = []
-            for f, t, s in zip(from_vals, to_vals, step_vals):
-                if s > 0 and t >= f:
-                    n_steps = int((t - f) / s) + 1
-                    value_lists.append([f + k * s for k in range(n_steps)])
-                else:
-                    value_lists.append([f])
-            total = len(files) * len(value_lists[0]) * len(value_lists[1]) * len(value_lists[2])
-        else:
-            widget_map = {1: (self.from_waist, self.to_waist, self.step_waist),
-                          2: (self.from_power, self.to_power, self.step_power),
-                          3: (self.from_detune, self.to_detune, self.step_detune)}
-            f_w, t_w, s_w = widget_map[idx]
-            f, t, s = f_w.value(), t_w.value(), s_w.value()
-            if s <= 0 or t < f:
-                QMessageBox.warning(self, "Invalid range", "Check that From ≤ To and Step > 0.")
-                return
-            count = int((t - f) / s) + 1
-            total = len(files) * count
+        sweeps = self._queued_sweeps()
+        if not sweeps:
+            QMessageBox.warning(
+                self, "Empty queue",
+                "Add at least one sweep with the Add Sweep button before generating."
+            )
+            return
 
-        # 3) Select output folder
+        per_axis = [len(s['values']) for s in sweeps]
+        total_combos = 1
+        for n in per_axis:
+            total_combos *= n
+        total = len(files) * total_combos
+
         target_dir = QFileDialog.getExistingDirectory(self, "Select Target Directory")
-        if not target_dir: return
+        if not target_dir:
+            return
 
-        # 4) Confirm
-        yn = QMessageBox.question(self, "Confirm",
-                                  f"About to generate {total} files into:\n{target_dir}\nProceed?",
-                                  QMessageBox.Yes | QMessageBox.No)
-        if yn != QMessageBox.Yes: return
+        yn = QMessageBox.question(
+            self, "Confirm",
+            f"About to generate {total} files into:\n{target_dir}\n"
+            f"({len(files)} input × {total_combos} combinations from {len(sweeps)} sweep axis/axes)\n"
+            f"Proceed?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if yn != QMessageBox.Yes:
+            return
 
-        # 5) Generate
+        written = 0
         for path in files:
             templ = json.loads(Path(path).read_text())
             base = Path(path).stem
-            if idx == 0:
-                for vx in value_lists[0]:
-                    for vy in value_lists[1]:
-                        for vz in value_lists[2]:
-                            cfg = json.loads(json.dumps(templ))
-                            cfg['Atoms']['start_velocity'] = [vx, vy, vz]
-                            json_fname = f"{base}_vx{vx:.1f}_vy{vy:.1f}_vz{vz:.1f}.json"
-                            Path(target_dir, json_fname).write_text(json.dumps(cfg, indent=4))
-            else:
-                scopes = [self.waist_scope, self.power_scope, self.detune_scope]
-                unit_map = {1: 'mm', 2: 'mW', 3: 'Gamma'}
-                key_map  = {1: 'waist', 2: 'beam_power', 3: 'detuning'}
-                div_map  = {1: 1e3, 2: 1e3, 3: 1.0}
-                choice = scopes[idx - 1].currentIndex()
-                unit   = unit_map[idx]
-                key    = key_map[idx]
-                div    = div_map[idx]
-                for n in range(count):
-                    val = f + n * s
-                    cfg = json.loads(json.dumps(templ))
-                    for las in cfg.get('Lasers', []):
-                        typ = las.get('type', '')
-                        if choice == 1 and typ != 'trap': continue
-                        if choice == 2 and typ != 'repump': continue
-                        las[key] = val / div
-
-                    if idx == 3 and choice in (1, 2):
-                        # replace “detuning” with “trap” or “repump”
-                        name_key = 'trap' if choice == 1 else 'repump'
-                    else:
-                        name_key = key_map[idx]
-                    json_fname = f"{base}_{name_key}_{val:.1f}{unit}.json"
-                    Path(target_dir, json_fname).write_text(json.dumps(cfg, indent=4))
-        QMessageBox.information(self, "Done", f"Generated {total} files.")
+            for combo in product(*(s['values'] for s in sweeps)):
+                cfg = json.loads(json.dumps(templ))
+                tags = []
+                for sweep, value in zip(sweeps, combo):
+                    self._apply_sweep(cfg, sweep, value)
+                    tags.append(self._tag_for(sweep, value))
+                fname = f"{base}_{'_'.join(tags)}.json"
+                Path(target_dir, fname).write_text(json.dumps(cfg, indent=4))
+                written += 1
+        QMessageBox.information(self, "Done", f"Generated {written} files.")
