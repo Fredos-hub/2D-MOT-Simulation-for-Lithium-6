@@ -1,6 +1,5 @@
-from PyQt5.QtWidgets import QMenuBar, QMenu, QAction
+from PyQt5.QtWidgets import QMenuBar, QAction
 from PyQt5.QtGui import QIcon
-import os
 
 
 class CustomMenuBar(QMenuBar):
@@ -15,13 +14,10 @@ class CustomMenuBar(QMenuBar):
         self.load_action = QAction(QIcon(), "Load", self)
         self.save_action = QAction(QIcon(), "Save", self)
         self.save_action.setEnabled(False)  # Initially disabled
-        self.save_as_action = QAction(QIcon(), "Save As...", self)
-        self.save_as_action.setEnabled(False)
         self.exit_action = QAction(QIcon(), "Exit", self)
 
         file_menu.addAction(self.load_action)
         file_menu.addAction(self.save_action)
-        file_menu.addAction(self.save_as_action)
         file_menu.addSeparator()
         file_menu.addAction(self.exit_action)
 
@@ -35,17 +31,3 @@ class CustomMenuBar(QMenuBar):
         simulation_menu.addAction(self.pause_action)
         simulation_menu.addAction(self.resume_action)
         simulation_menu.addAction(self.cancel_action)
-
-        io_menu = self.addMenu("I/O Settings")
-        self.edit_target_directory = QAction(QIcon(), "Set Target Directory", self)
-        self.sim_output = QAction(QIcon(), "Set Simulation Output", self)
-        io_menu.addAction(self.edit_target_directory)
-        io_menu.addAction(self.sim_output)
-
-
-
-
-
-
-
-

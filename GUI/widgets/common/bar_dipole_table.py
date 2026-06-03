@@ -3,7 +3,8 @@ from PyQt5.QtWidgets import (
     QHeaderView, QSizePolicy, QLabel, QDoubleSpinBox, QMessageBox, QFrame
 )
 from PyQt5.QtCore import Qt, QLocale
-from GUI.widgets.vector_input_widget import VectorInputWidget
+from GUI.widgets.common.vector_input_widget import VectorInputWidget
+from GUI.widgets.tabs.settings_tab_base import signals_blocked
 
 class BarDipolesTable(QWidget):
     """
@@ -73,14 +74,11 @@ class BarDipolesTable(QWidget):
         """Load dipoles list from model."""
         self._model = model
         dip_list = model.get('Magnetic_Fields', 'dipoles', default=[]) or []
-        self.table.blockSignals(True)
-        try:
+        with signals_blocked(self.table):
             self.table.setRowCount(len(dip_list))
             for row, cfg in enumerate(dip_list):
                 self._populate_row(row, cfg)
             self.table.setVerticalHeaderLabels([f"D{n}" for n in range(len(dip_list))])
-        finally:
-            self.table.blockSignals(False)
 
     def _populate_row(self, row, cfg):
         # Position widget

@@ -1,12 +1,13 @@
 from PyQt5.QtWidgets import (
-    QWidget, QFormLayout, QComboBox, QDoubleSpinBox,
+    QFormLayout, QComboBox, QDoubleSpinBox,
     QLabel
 )
 from PyQt5.QtCore import QLocale
 import inspect
 import src.magnetic_field as magnetic_field
-from GUI.widgets.bar_dipole_table import BarDipolesTable
-from GUI.widgets.vector_input_widget import VectorInputWidget
+from GUI.widgets.common.bar_dipole_table import BarDipolesTable
+from GUI.widgets.common.vector_input_widget import VectorInputWidget
+from GUI.widgets.tabs.settings_tab_base import SettingsTab, signals_blocked
 import math
 
 # drop-in replacement for QDoubleSpinBox with auto-precision display
@@ -25,15 +26,11 @@ class AutoPrecisionDoubleSpinBox(QDoubleSpinBox):
         return s
 
 
-class MagneticFieldSettingsTab(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._model = None
-        self._field_widgets = []   # (labelItem, fieldItem, key)
-        self._init_ui()
-        self._connect_signals()
+class MagneticFieldSettingsTab(SettingsTab):
+    SECTION = "Magnetic_Fields"
 
     def _init_ui(self):
+        self._field_widgets = []   # (labelItem, fieldItem, key)
         self.layout = QFormLayout(self)
         self.fieldSelectionCombo = QComboBox()
         names, _ = zip(*inspect.getmembers(magnetic_field, inspect.isclass))
@@ -45,25 +42,20 @@ class MagneticFieldSettingsTab(QWidget):
         self.layout.addRow("Field Type Selection:", self.fieldSelectionCombo)
 
     def _connect_signals(self):
-        self.fieldSelectionCombo.currentTextChanged.connect(
-            lambda t: self._update_model('type', t)
-        )
-        self.fieldSelectionCombo.currentTextChanged.connect(
-            self._on_magnetic_field_type_changed
-        )
+        self.fieldSelectionCombo.currentTextChanged.connect(self._on_field_type_changed)
 
     def setModel(self, model):
         self._model = model
-        try:
-            saved = model.get("Magnetic_Fields", "type", default="No Magnetic Field")
-        except Exception:
-            saved = "No Magnetic Field"
+        saved = model.safe_get("Magnetic_Fields", "type", default="No Magnetic Field")
+        with signals_blocked(self.fieldSelectionCombo):
+            self.fieldSelectionCombo.setCurrentText(saved)
+        # Load: rebuild the param widgets without writing back to the model.
+        self._rebuild_field_widgets(saved)
 
-        self.fieldSelectionCombo.blockSignals(True)
-        self.fieldSelectionCombo.setCurrentText(saved)
-        self.fieldSelectionCombo.blockSignals(False)
-
-        self._on_magnetic_field_type_changed(saved)
+    def _on_field_type_changed(self, field_type):
+        """User changed the field type: persist it, then rebuild the param widgets."""
+        self._update_model('type', field_type)
+        self._rebuild_field_widgets(field_type)
 
     def _clear_field_widgets(self):
         for lbl_item, fld_item, key in self._field_widgets:
@@ -75,7 +67,7 @@ class MagneticFieldSettingsTab(QWidget):
             w_fld.deleteLater()
         self._field_widgets.clear()
 
-    def _on_magnetic_field_type_changed(self, field_type):
+    def _rebuild_field_widgets(self, field_type):
         self._clear_field_widgets()
 
         if field_type == "No Magnetic Field":
@@ -86,14 +78,10 @@ class MagneticFieldSettingsTab(QWidget):
             spin.setLocale(QLocale(QLocale.C))
             spin.setMaximumWidth(280)
 
-            try:
-                val = self._model.get("Magnetic_Fields", key, default=default)
-            except Exception:
-                val = default
+            val = self._model.safe_get("Magnetic_Fields", key, default=default)
 
-            spin.blockSignals(True)
-            spin.setValue(val)
-            spin.blockSignals(False)
+            with signals_blocked(spin):
+                spin.setValue(val)
 
             spin.valueChanged.connect(lambda v, k=key: self._update_model(k, v))
 
@@ -114,14 +102,10 @@ class MagneticFieldSettingsTab(QWidget):
             spin.setLocale(QLocale(QLocale.C))
             spin.setMaximumWidth(280)
 
-            try:
-                val = self._model.get("Magnetic_Fields", key, default=default)
-            except Exception:
-                val = default
+            val = self._model.safe_get("Magnetic_Fields", key, default=default)
 
-            spin.blockSignals(True)
-            spin.setValue(val)
-            spin.blockSignals(False)
+            with signals_blocked(spin):
+                spin.setValue(val)
 
             spin.valueChanged.connect(lambda v, k=key: self._update_model(k, v))
 
@@ -135,10 +119,7 @@ class MagneticFieldSettingsTab(QWidget):
 
         def add_vector_param(key, text, default):
             vec_widget = VectorInputWidget(initial_value=default, parent=self)
-            try:
-                val = self._model.get("Magnetic_Fields", key, default=default)
-            except Exception:
-                val = default
+            val = self._model.safe_get("Magnetic_Fields", key, default=default)
             vec_widget.setMaximumWidth(280)
             vec = default
             try:
@@ -242,9 +223,3 @@ class MagneticFieldSettingsTab(QWidget):
                 self.layout.itemAt(self.layout.rowCount()-1, QFormLayout.FieldRole),
                 'dipoles'
             ))
-
-    def _update_model(self, key, value):
-        if not self._model:
-            return
-        if key != 'dipoles':
-            self._model.set(value, 'Magnetic_Fields', key)

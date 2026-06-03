@@ -12,7 +12,7 @@ class ToolBar(QToolBar):
         # Toolbar action for loading a file
         self.load_action = QAction(self.style().standardIcon(QStyle.SP_DialogOpenButton), "Open Directory", self)
         self.load_action.setShortcut("Ctrl+L")
-        self.load_action.setStatusTip("Open Directorx")
+        self.load_action.setStatusTip("Open Directory")
 
         # Toolbar action for creating a new file
         self.new_action = QAction(self.style().standardIcon(QStyle.SP_FileIcon), "New", self)
@@ -32,13 +32,13 @@ class ToolBar(QToolBar):
 
 
         self.discard_action = QAction(self.style().standardIcon(QStyle.SP_DialogOkButton), "Discard Changes", self)
-        self.discard_action.setShortcut("Ctrl + D")
+        self.discard_action.setShortcut("Ctrl+D")
         self.discard_action.setStatusTip("Discard Changes to the current file")
         self.discard_action.setEnabled(False)
 
 
         self.discard_all_action = QAction(self.style().standardIcon(QStyle.SP_DialogResetButton), "Discard All Changes", self)
-        self.discard_all_action.setShortcut("Ctrl + Shift + D")
+        self.discard_all_action.setShortcut("Ctrl+Shift+D")
         self.discard_all_action.setStatusTip("Discard All Changes")
         self.discard_all_action.setEnabled(False)
 
@@ -46,7 +46,7 @@ class ToolBar(QToolBar):
         self.run_action = QAction(self.style().standardIcon(QStyle.SP_MediaPlay), "Run", self)
         self.run_action.setShortcut("Ctrl+R")
         self.run_action.setStatusTip("Run the current file")
-        self.run_action.setEnabled(True)  # Initially disabled
+        self.run_action.setEnabled(True)  # Enabled by default
 
         # Toolbar action for pausing simulation
         self.pause_action = QAction(self.style().standardIcon(QStyle.SP_MediaPause), "Pause", self)
@@ -63,7 +63,7 @@ class ToolBar(QToolBar):
 
         # Toolbar action for canceling simulation
         self.cancel_action = QAction(self.style().standardIcon(QStyle.SP_DialogCancelButton), "Cancel", self)
-        self.cancel_action.setShortcut("Ctrl+C")
+        self.cancel_action.setShortcut("Ctrl+Shift+C")
         self.cancel_action.setStatusTip("Cancel the current operation")
         self.cancel_action.setEnabled(False)
 

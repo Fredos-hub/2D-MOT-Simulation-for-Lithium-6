@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
     QFormLayout, QComboBox, QSizePolicy, QListWidgetItem
 )
 
-from GUI.widgets.vector_input_widget import VectorInputWidget
+from GUI.widgets.common.vector_input_widget import VectorInputWidget
 
 _SCOPE_LABEL = {0: "All", 1: "Trap", 2: "Repump"}
 

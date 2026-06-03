@@ -2,14 +2,15 @@ import os
 import inspect
 import scipy.constants as scc
 from PyQt5.QtWidgets import (
-    QWidget, QFormLayout, QLineEdit, QComboBox, QCheckBox, QSpinBox, QMessageBox, QPushButton, QFileDialog
+    QFormLayout, QLineEdit, QComboBox, QCheckBox, QSpinBox, QMessageBox, QPushButton, QFileDialog
 )
 from PyQt5.QtCore import Qt, QDir
-from GUI.widgets.vector_input_widget import VectorInputWidget
+from GUI.widgets.common.vector_input_widget import VectorInputWidget
+from GUI.widgets.tabs.settings_tab_base import SettingsTab, signals_blocked
 import src.atoms as atoms
 
 
-class AtomsSettingsTab(QWidget):
+class AtomsSettingsTab(SettingsTab):
     """
     Refactored Atom settings tab using FileModel:
       - species selection updates model.
@@ -22,12 +23,7 @@ class AtomsSettingsTab(QWidget):
     """
 
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._model = None
-        self._make_species_instances()
-        self._init_ui()
-        self._connect_signals()
+    SECTION = "Atoms"
 
     def _make_species_instances(self):
         # load all ECSAtoms subclasses
@@ -40,6 +36,7 @@ class AtomsSettingsTab(QWidget):
                 pass
 
     def _init_ui(self):
+        self._make_species_instances()
         layout = QFormLayout(self)
         # Species
         self.speciesCombo = QComboBox()
@@ -124,8 +121,7 @@ class AtomsSettingsTab(QWidget):
 
     def setModel(self, model):
         self._model = model
-        self._model.blockSignals(True) 
-        for w in (
+        widgets = (
             self.speciesCombo,
             self.numAtomsSpin,
             self.startPosWidget,
@@ -134,55 +130,54 @@ class AtomsSettingsTab(QWidget):
             self.randomizeCheckbox,
             self.sample_line,
             self.sampleTypeCombo,
-        ):
-            w.blockSignals(True)
-
+        )
         try:
-            # Populate fields from model
-            self.speciesCombo.setCurrentIndex(
-                self.speciesCombo.findText(
-                    model.safe_get('Atoms', 'species', default=self.speciesCombo.itemText(0))
+            with signals_blocked(*widgets):
+                # Populate fields from model
+                self.speciesCombo.setCurrentIndex(
+                    self.speciesCombo.findText(
+                        model.safe_get('Atoms', 'species', default=self.speciesCombo.itemText(0))
+                    )
                 )
-            )
-            inst = self.species_instances.get(self.speciesCombo.currentText(), None)
-            if inst is None:
-                raise ValueError(f"Species '{self.speciesCombo.currentText()}' not found.")
-            self.massDisplay.setText(str(inst.mass_u))
-            self.transitionFreqDisplay.setText(f"{inst.transition_frequency/1e6:.1f}")
-            lw = inst.natural_linewidth/(2*scc.pi*1e6)
-            self.naturalLinewidthDisplay.setText(f"{lw:.2f}")
+                inst = self.species_instances.get(self.speciesCombo.currentText(), None)
+                if inst is None:
+                    raise ValueError(f"Species '{self.speciesCombo.currentText()}' not found.")
+                self.massDisplay.setText(str(inst.mass_u))
+                self.transitionFreqDisplay.setText(f"{inst.transition_frequency/1e6:.1f}")
+                lw = inst.natural_linewidth/(2*scc.pi*1e6)
+                self.naturalLinewidthDisplay.setText(f"{lw:.2f}")
 
-            self.numAtomsSpin.setValue(
-                model.safe_get('Atoms', 'number', default=1)
-            )
-            self.startPosWidget.setVector(
-                model.safe_get('Atoms', 'start_position', default=[0,0,0])
-            )
-            self.startVelWidget.setVector(
-                model.safe_get('Atoms', 'start_velocity', default=[0,0,0])
-            )
+                self.numAtomsSpin.setValue(
+                    model.safe_get('Atoms', 'number', default=1)
+                )
+                self.startPosWidget.setVector(
+                    model.safe_get('Atoms', 'start_position', default=[0,0,0])
+                )
+                self.startVelWidget.setVector(
+                    model.safe_get('Atoms', 'start_velocity', default=[0,0,0])
+                )
 
-            # Ground‐state combo
-            gs = model.safe_get('Atoms', 'ground_state', default=0)
-            idx = self.groundStateCombo.findText(str(gs))
-            if idx >= 0:
-                self.groundStateCombo.setCurrentIndex(idx)
+                # Ground‐state combo
+                gs = model.safe_get('Atoms', 'ground_state', default=0)
+                idx = self.groundStateCombo.findText(str(gs))
+                if idx >= 0:
+                    self.groundStateCombo.setCurrentIndex(idx)
 
-            # Randomized flag
-            rnd = model.safe_get('Atoms', 'randomize_ground_state', default=False)
-            self.randomizeCheckbox.setChecked(rnd)
+                # Randomized flag
+                rnd = model.safe_get('Atoms', 'randomize_ground_state', default=False)
+                self.randomizeCheckbox.setChecked(rnd)
 
-            # Sample file
-            sample = model.safe_get('Atoms', 'sample_file', default='')
-            self.sample_line.setText(sample)
-            # Reflect disable states
-            self._update_sample_field_states(bool(sample))
+                # Sample file
+                sample = model.safe_get('Atoms', 'sample_file', default='')
+                self.sample_line.setText(sample)
+                # Reflect disable states
+                self._update_sample_field_states(bool(sample))
 
-            # Sample type
-            sample_style = model.safe_get('Atoms', 'sample_style', default='oven')
-            idx = self.sampleTypeCombo.findData(sample_style)
-            if idx >= 0:
-                self.sampleTypeCombo.setCurrentIndex(idx)
+                # Sample type
+                sample_style = model.safe_get('Atoms', 'sample_style', default='oven')
+                idx = self.sampleTypeCombo.findData(sample_style)
+                if idx >= 0:
+                    self.sampleTypeCombo.setCurrentIndex(idx)
 
         except Exception as e:
             QMessageBox.warning(
@@ -190,21 +185,6 @@ class AtomsSettingsTab(QWidget):
                 "Load Error",
                 f"Some atom settings failed to load.\n\n{e}"
             )
-
-        finally:
-            for w in (
-                self.speciesCombo,
-                self.numAtomsSpin,
-                self.startPosWidget,
-                self.startVelWidget,
-                self.groundStateCombo,
-                self.randomizeCheckbox,
-                self.sample_line,
-                self.sampleTypeCombo,
-            ):
-                w.blockSignals(False)
-
-            self._model.blockSignals(False) 
 
 
     def _browse_sample(self):
@@ -231,11 +211,6 @@ class AtomsSettingsTab(QWidget):
         # Disable ground-state controls when sample is set
         self.randomizeCheckbox.setDisabled(populated)
         self.groundStateCombo.setDisabled(populated or self.randomizeCheckbox.isChecked())
-
-    def _update_model(self, key, value):
-        if not self._model:
-            return
-        self._model.set(value, 'Atoms', key)
 
     def _on_species_changed(self, text):
         self._update_model('species', text)

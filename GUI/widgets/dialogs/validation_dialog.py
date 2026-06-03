@@ -86,7 +86,7 @@ class ValidationDiffDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _load_from_model(self):
-        text = json.dumps(self.model._current, indent=2)
+        text = json.dumps(self.model.data(), indent=2)
         self.jsonEditor.blockSignals(True)
         self.jsonEditor.setPlainText(text)
         self.jsonEditor.blockSignals(False)
@@ -222,7 +222,7 @@ class ValidationDiffDialog(QDialog):
             QMessageBox.warning(self, "Invalid JSON", f"Cannot save invalid JSON:\n{e}")
             return
         try:
-            self.model._current = data
+            self.model.replace(data)
             self.model.save()
         except Exception as e:
             QMessageBox.critical(self, "Save Error", f"Failed to save file:\n{e}")
