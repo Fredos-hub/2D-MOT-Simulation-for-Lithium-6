@@ -8,10 +8,13 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal,QTimer, QRegularExpression
 from PyQt5.QtGui import QColor, QTextCursor, QSyntaxHighlighter, QTextCharFormat, QFont
-from GUI.widgets.file_table import FileTableWidget, FileSimState
-from GUI.widgets.settings_tabs import SettingsTabsWidget
-from GUI.file_model import FileModel
+from GUI.widgets.common.file_table import FileTableWidget, FileSimState
+from GUI.widgets.tabs.settings_tabs import SettingsTabsWidget
+from GUI.models.file_model import FileModel
 from src.batch_worker import BatchSimulationWorker
+import src.batch_worker as batch_worker
+from src import checkpoint
+import re
 from jsonschema import Draft7Validator
 
 schema_version = 1
@@ -100,6 +103,7 @@ class SimulationCockpit(QWidget):
         self.simulation_running_flag = False
         self.simulation_queue = []  # list of (row, filename)
         self.batch_worker = None
+        self._schema_cache = None   # parsed JSON schema, loaded once on demand
         self._init_ui()
 
     def _init_ui(self):
@@ -167,23 +171,51 @@ class SimulationCockpit(QWidget):
         self.fileDirtyChanged.emit(model.is_dirty())
         self._emit_any_dirty()
 
+    def is_simulation_running(self) -> bool:
+        return self.batch_worker is not None and self.batch_worker.isRunning()
+
+    def has_unsaved_changes(self) -> bool:
+        return any(model.is_dirty() for model in self.models.values())
+
+    def stop_simulation_and_wait(self):
+        """Stop the batch worker and block until its thread has finished."""
+        if self.is_simulation_running():
+            self.batch_worker.stop()
+            self.batch_worker.wait()
+
     def _validate_model(self, model) -> list:
         """Return list of jsonschema ValidationErrors for the model's current data."""
-        try:
-            with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
-                schema = json.load(f)
-        except Exception:
+        schema = self._load_schema()
+        if schema is None:
             return None
         validator = Draft7Validator(schema)
-        return list(validator.iter_errors(model._current))
+        return list(validator.iter_errors(model.data()))
 
     def _load_schema(self) -> dict | None:
-        try:
-            with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            QMessageBox.critical(self, "Schema Load Error", f"Could not load JSON schema:\n{e}")
-            return None
+        """Load and cache the JSON schema; read from disk only once."""
+        if self._schema_cache is None:
+            try:
+                with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
+                    self._schema_cache = json.load(f)
+            except Exception as e:
+                QMessageBox.critical(self, "Schema Load Error", f"Could not load JSON schema:\n{e}")
+                return None
+        return self._schema_cache
+
+    def _register_model(self, name, model):
+        """Wire a FileModel's dirty signal into the table + cockpit, baseline it clean, and store it."""
+        model.dirtyChanged.connect(lambda dirty, filename=name: self.fileTable.update_status(filename, dirty))
+        model.dirtyChanged.connect(lambda dirty, filename=name: self._on_model_dirty(filename, dirty))
+        model.dirtyChanged.connect(self.fileDirtyChanged)
+        model.mark_clean()
+        self.models[name] = model
+
+    def _refresh_file_display(self, name, model):
+        """Push a model's current dirty + validation state into the table row."""
+        self.fileTable.update_status(name, model.is_dirty())
+        errors = self._validate_model(model)
+        if errors is not None:
+            self.fileTable.set_validation_status(name, errors)
 
     def open_directory(self):
         directory = QFileDialog.getExistingDirectory(self, "Select directory containing JSON files")
@@ -194,20 +226,11 @@ class SimulationCockpit(QWidget):
 
         self.models.clear()
         for file in sorted(Path(directory).glob("*.json")):
-            name = file.name
-            model = FileModel(str(file))
-            model.dirtyChanged.connect(lambda dirty,filename=name: self.fileTable.updateStatus(filename, dirty))
-            model.dirtyChanged.connect(lambda dirty, filename=name: self._on_model_dirty(filename, dirty))
-            model.mark_clean()
-            model.dirtyChanged.connect(self.fileDirtyChanged)
-            self.models[name] = model
+            self._register_model(file.name, FileModel(str(file)))
 
         self.fileTable.load_directory(directory)
         for name, model in self.models.items():
-            self.fileTable.updateStatus(name, model.is_dirty())
-            errors = self._validate_model(model)
-            if errors is not None:
-                self.fileTable.setValidationStatus(name, errors)
+            self._refresh_file_display(name, model)
         self._emit_any_dirty()
 
     def _generate_skeleton_from_schema(self,
@@ -485,20 +508,12 @@ class SimulationCockpit(QWidget):
         # 6a) Create FileModel for the newly created file and register signals
         new_name = os.path.basename(new_path)
         model = FileModel(new_path)
-        # wire up the same callbacks as for copied/loaded files:
-        model.dirtyChanged.connect(lambda dirty, filename=new_name: self.fileTable.updateStatus(filename, dirty))
-        model.dirtyChanged.connect(lambda dirty, filename=new_name: self._on_model_dirty(filename, dirty))
-        model.dirtyChanged.connect(self.fileDirtyChanged)
-        model.mark_clean()
-        self.models[new_name] = model
+        self._register_model(new_name, model)
 
         # 6b) Log and refresh UI
         self.loggingField.appendPlainText(f"Created: {new_path}")
         self.fileTable.refresh_table()
-        self.fileTable.updateStatus(new_name, model.is_dirty())
-        errors = self._validate_model(model)
-        if errors is not None:
-            self.fileTable.setValidationStatus(new_name, errors)
+        self._refresh_file_display(new_name, model)
 
 
     def save_file(self):
@@ -511,7 +526,7 @@ class SimulationCockpit(QWidget):
             model.save()
             self.loggingField.appendPlainText(f"Saved {filename}")
             # re‐apply the clean highlight for this one row
-            self.fileTable.updateStatus(filename, model.is_dirty())
+            self.fileTable.update_status(filename, model.is_dirty())
         else:
             self.loggingField.appendPlainText(f"No changes to save for {filename}")
 
@@ -525,7 +540,7 @@ class SimulationCockpit(QWidget):
         self.loggingField.appendPlainText(f"Saved {count} file(s)")
         # re‐apply all statuses so the visuals match model states
         for filename, model in self.models.items():
-            self.fileTable.updateStatus(filename, model.is_dirty())
+            self.fileTable.update_status(filename, model.is_dirty())
 
     def discard_changes(self):
         row = self.fileTable.table.currentRow()
@@ -573,12 +588,12 @@ class SimulationCockpit(QWidget):
 
         # Mark all queued files as pending (first will flip to simulating via fileStarted)
         for name in self.simulation_queue:
-            self.fileTable.setSimulationStatus(name, FileSimState.PENDING)
+            self.fileTable.set_simulation_status(name, FileSimState.PENDING)
 
         # Start batch worker
         self.batch_worker = BatchSimulationWorker(self.opened_directory, self.simulation_queue)
         self.batch_worker.progressChanged.connect(self.progressBar.setValue)
-        self.batch_worker.statusChanged.connect(self.handleStatusUpdate)
+        self.batch_worker.statusChanged.connect(self._on_status_update)
         self.batch_worker.fileStarted.connect(self._on_file_started)
         self.batch_worker.fileFinished.connect(self._on_file_finished)
         self.batch_worker.finished.connect(self._on_all_finished)
@@ -588,14 +603,14 @@ class SimulationCockpit(QWidget):
 
 
     def _on_file_started(self, filename: str, total_steps: int):
-        self.fileTable.setSimulationStatus(filename, FileSimState.SIMULATING)
+        self.fileTable.set_simulation_status(filename, FileSimState.SIMULATING)
 
     def _on_file_finished(self, filename: str):
-        self.fileTable.setSimulationStatus(filename, FileSimState.DONE)
+        self.fileTable.set_simulation_status(filename, FileSimState.DONE)
 
     def _on_all_finished(self):
         for name in list(self.models.keys()):
-            self.fileTable.setSimulationStatus(name, None)
+            self.fileTable.set_simulation_status(name, None)
         self.progressBar.setValue(0)
         self.simulation_running_flag = False
         if self.batch_worker:
@@ -617,11 +632,11 @@ class SimulationCockpit(QWidget):
         self.compilingTimer = QTimer(self)
         self.compilingTimer.setInterval(500)  # Update every 500ms
         self.compilingAnimationStep = 0
-        self.compilingTimer.timeout.connect(self.updateCompilingStatus)
+        self.compilingTimer.timeout.connect(self._update_compiling_status)
         self.compilingTimer.start()
         self.isCompilingAnimationActive = True
 
-    def updateCompilingStatus(self):
+    def _update_compiling_status(self):
         # Only update if the animation is active.
         if self.isCompilingAnimationActive:
             dots = "." * ((self.compilingAnimationStep % 3) + 1)
@@ -639,7 +654,7 @@ class SimulationCockpit(QWidget):
                 pass
             self.compilingTimer = None
 
-    def handleStatusUpdate(self, status):
+    def _on_status_update(self, status):
         # Start/stop compilation animation
         if status == "Simulation instance created":
             self.startCompilationAnimation()
@@ -715,14 +730,64 @@ class SimulationCockpit(QWidget):
         schema = self._load_schema()
         if schema is None:
             return
-        from GUI.widgets.validation_dialog import ValidationDiffDialog
+        from GUI.widgets.dialogs.validation_dialog import ValidationDiffDialog
         dlg = ValidationDiffDialog(model, schema, parent=self)
         dlg.exec_()
         # Re-validate and update status after dialog closes (user may have saved changes)
-        errors = self._validate_model(model)
-        if errors is not None:
-            self.fileTable.setValidationStatus(filename, errors)
-        self.fileTable.updateStatus(filename, model.is_dirty())
+        self._refresh_file_display(filename, model)
+
+    def resume_from_checkpoint(self):
+        """Continue an interrupted run from its latest checkpoint (distinct from unpause)."""
+        if self.simulation_running_flag:
+            QMessageBox.warning(self, "Simulation", "Simulation already running.")
+            return
+
+        checkpoint_dir = self._find_latest_resumable_checkpoint()
+        if checkpoint_dir is None:
+            QMessageBox.information(self, "Resume run", "No resumable checkpoint found.")
+            return
+
+        # Empty file list is intentional: the worker repopulates directory/file_names from the
+        # checkpoint meta for whole-batch resume (D-07).
+        self.batch_worker = BatchSimulationWorker(self.opened_directory, [], resume_checkpoint_dir=checkpoint_dir)
+        self.batch_worker.progressChanged.connect(self.progressBar.setValue)
+        self.batch_worker.statusChanged.connect(self._on_status_update)
+        self.batch_worker.fileStarted.connect(self._on_file_started)
+        self.batch_worker.fileFinished.connect(self._on_file_finished)
+        self.batch_worker.finished.connect(self._on_all_finished)
+        self.simulation_running_flag = True
+        self.simulationStateChanged.emit("running")
+        self.batch_worker.start()
+
+    def _find_latest_resumable_checkpoint(self):
+        """Scan simulation_results batch folders NEWEST-FIRST and return the first dir with a
+        resumable checkpoint, or None. A later CLEAN batch deletes its own checkpoint (D-08),
+        so do not stop at the newest folder if it has none."""
+        results_root = os.path.join(batch_worker.REPO_ROOT, "simulation_results")
+        if not os.path.isdir(results_root):
+            return None
+        entries = []
+        for name in os.listdir(results_root):
+            full = os.path.join(results_root, name)
+            if not os.path.isdir(full):
+                continue
+            m = re.match(r"^(\d{2})_(\d{2})_(\d{2})_(\d+)$", name)  # DD_MM_YY_N
+            if m:
+                dd, mm, yy, n = (int(g) for g in m.groups())
+                key = (yy, mm, dd, n)
+            else:
+                key = (-1, -1, -1, os.path.getmtime(full))
+            entries.append((key, full))
+        entries.sort(reverse=True)  # newest first
+        for _, folder in entries:
+            ckpt = checkpoint.find_resumable_checkpoint(folder)
+            if ckpt is not None:
+                return ckpt
+        return None
+
+    def has_resumable_checkpoint(self) -> bool:
+        """True if a resumable checkpoint exists (used to gate the Resume-run action)."""
+        return self._find_latest_resumable_checkpoint() is not None
 
     def pause_simulation(self):
         if self.batch_worker:
@@ -741,6 +806,12 @@ class SimulationCockpit(QWidget):
         msg.setWindowTitle("Cancel Simulation")
         msg.setText("What would you like to cancel?")
         msg.setIcon(QMessageBox.Question)
+        msg.setInformativeText(
+            "Cancel current: stop the running file — partial results are saved and the run stays "
+            "resumable from its last checkpoint — then continue with any remaining queued files.\n"
+            "Cancel all: stop everything, including remaining queued files.\n"
+            "Continue: keep running."
+        )
         btn_current = msg.addButton("Cancel current", QMessageBox.DestructiveRole)
         btn_all     = msg.addButton("Cancel all",     QMessageBox.DestructiveRole)
         btn_keep    = msg.addButton("Continue",       QMessageBox.RejectRole)
@@ -760,18 +831,9 @@ class SimulationCockpit(QWidget):
         create a FileModel for it and register all the same signals."""
         full_path = os.path.join(self.opened_directory, copy_name)
         model = FileModel(full_path)
-        model.dirtyChanged.connect(lambda dirty, filename=copy_name:
-                                self.fileTable.updateStatus(filename, dirty))
-        model.dirtyChanged.connect(lambda dirty, filename=copy_name:
-                                self._on_model_dirty(filename, dirty))
-        model.dirtyChanged.connect(self.fileDirtyChanged)
-        model.mark_clean()
-        self.models[copy_name] = model
+        self._register_model(copy_name, model)
         self.fileTable.refresh_table()
-        self.fileTable.updateStatus(copy_name, model.is_dirty())
-        errors = self._validate_model(model)
-        if errors is not None:
-            self.fileTable.setValidationStatus(copy_name, errors)
+        self._refresh_file_display(copy_name, model)
 
 
 

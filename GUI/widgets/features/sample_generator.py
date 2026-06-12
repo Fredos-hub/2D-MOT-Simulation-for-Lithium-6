@@ -21,7 +21,7 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.figure import Figure
 
-from GUI.oven_worker import OvenWorker
+from GUI.workers.oven_worker import OvenWorker
 
 
 class SampleGeneratorTab(QWidget):
@@ -44,6 +44,7 @@ class SampleGeneratorTab(QWidget):
         self.file_df: pd.DataFrame | None = None
         self.step_times_s: np.ndarray = np.array([], dtype=float)
         self.step_summary: pd.DataFrame = pd.DataFrame()
+        self.worker = None   # active OvenWorker, if any
 
         # Plot widgets are created in _init_ui()
         self._init_ui()
@@ -247,10 +248,13 @@ class SampleGeneratorTab(QWidget):
         self.browse_output_btn.clicked.connect(lambda: self._browse_output(self.output_line))
         layout.addRow("Output file:", self._hbox(self.output_line, self.browse_output_btn))
 
-        # Generate button
+        # Generate / Cancel buttons
         self.generate_oven_btn = QPushButton("Generate Sample")
         self.generate_oven_btn.clicked.connect(self._generate_from_oven)
-        layout.addRow("", self.generate_oven_btn)
+        self.cancel_oven_btn = QPushButton("Cancel")
+        self.cancel_oven_btn.clicked.connect(self._cancel_oven)
+        self.cancel_oven_btn.setEnabled(False)
+        layout.addRow("", self._hbox(self.generate_oven_btn, self.cancel_oven_btn))
 
         group.setLayout(layout)
         return group
@@ -721,21 +725,51 @@ class SampleGeneratorTab(QWidget):
             "output_file": self.output_line.text(),
         }
 
-        # 2) disable button so user can’t double-click
-        self.generate_oven_btn.setEnabled(False)
+        # 2) reflect running state in the buttons
+        self._set_oven_running(True)
 
         # 3) spin up worker thread
         self.worker = OvenWorker(params)
         self.worker.progress.connect(self.dist_progress_bar.setValue)
         self.worker.finished.connect(self._on_oven_finished)
+        self.worker.error.connect(self._on_oven_error)
+        self.worker.cancelled.connect(self._on_oven_cancelled)
         self.worker.start()
 
         self.statusLabel.setText("Status: Running…")
 
+    def _set_oven_running(self, running: bool):
+        self.generate_oven_btn.setEnabled(not running)
+        self.cancel_oven_btn.setEnabled(running)
+
+    def _cancel_oven(self):
+        if self.is_busy():
+            self.worker.cancel()
+            self.statusLabel.setText("Status: Cancelling…")
+
+    def is_busy(self) -> bool:
+        return self.worker is not None and self.worker.isRunning()
+
+    def cancel_and_wait(self):
+        """Request cancellation and block until the worker thread has finished."""
+        if self.is_busy():
+            self.worker.cancel()
+            self.worker.wait()
+
     def _on_oven_finished(self, filename):
-        self.generate_oven_btn.setEnabled(True)
+        self._set_oven_running(False)
         self.statusLabel.setText(f"Status: Done → {filename}")
         self.sampleCreated.emit(filename)
+
+    def _on_oven_error(self, message):
+        self._set_oven_running(False)
+        self.dist_progress_bar.setValue(0)
+        self.statusLabel.setText(f"Status: Error — {message}")
+
+    def _on_oven_cancelled(self):
+        self._set_oven_running(False)
+        self.dist_progress_bar.setValue(0)
+        self.statusLabel.setText("Status: Cancelled.")
 
     def _generate_from_file(self):
         input_file = self.input_line.text().strip()

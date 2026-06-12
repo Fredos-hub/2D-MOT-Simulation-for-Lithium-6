@@ -1,24 +1,22 @@
 
 import inspect
 from PyQt5.QtWidgets import (
-    QWidget, QFormLayout, QLineEdit, QSpinBox, QDoubleSpinBox,QMessageBox,QRadioButton,QGroupBox,
+    QFormLayout, QLineEdit, QSpinBox, QDoubleSpinBox,QMessageBox,QRadioButton,QGroupBox,
     QComboBox)
 from PyQt5.QtCore import QLocale
 from PyQt5.QtGui import QIntValidator
+from GUI.widgets.tabs.settings_tab_base import SettingsTab, signals_blocked
 import src.interactions as interactions
 
-class SimulationSettingsTab(QWidget):
+class SimulationSettingsTab(SettingsTab):
     """
     Tab for simulation run settings, backed by a FileModel.
     Fields are loaded from the model on setModel(), and changes are
     written back via model.set(...).
     """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._model = None
-        self._setup_ui()
-        self._connect_signals()
-    def _setup_ui(self):
+    SECTION = "Simulation"
+
+    def _init_ui(self):
         layout = QFormLayout(self)
 
 
@@ -134,10 +132,7 @@ class SimulationSettingsTab(QWidget):
 
     def setModel(self, model):
         self._model = model
-
-        # block signals
-        self._model.blockSignals(True)
-        for w in (
+        widgets = (
             self.resolutionSpin,
             self.maxTimeSpin,
             self.defaultStepSpin,
@@ -145,39 +140,23 @@ class SimulationSettingsTab(QWidget):
             self.interactionCombo,
             self.rateRadioBtn,
             self.fluxSpin,
-            self.macroparticleSpin
-        ):
-            w.blockSignals(True)
-
+            self.macroparticleSpin,
+        )
         try:
-            # Populate
-            self.defaultStepSpin.setValue(model.safe_get('Simulation', 'default_time_step', default=10))
+            with signals_blocked(*widgets):
+                self.defaultStepSpin.setValue(model.safe_get('Simulation', 'default_time_step', default=10))
+                self.resolutionSpin.setValue(model.safe_get('Simulation', 'step_resolution', default=10))
+                self.maxTimeSpin.setValue(model.safe_get('Simulation', 'simulated_time', default=3))
+                self.seed_spin.setValue(model.safe_get('Simulation', 'random_seed', default=0))
+                self.rateRadioBtn.setChecked(model.safe_get('Simulation', 'rate_mode', default=False))
+                self.fluxSpin.setValue(model.safe_get('Simulation', 'flux', default=3))
+                self.macroparticleSpin.setValue(model.safe_get('Simulation', 'macro_particle_weight', default=5000))
 
-            self.resolutionSpin.setValue(model.safe_get('Simulation', 'step_resolution', default=10))
-
-            self.maxTimeSpin.setValue(model.safe_get('Simulation', 'simulated_time', default=3))
-
-
-            seed = model.safe_get("Simulation", "random_seed", default = 0)
-            self.seed_spin.setValue(seed)
-
-            rate_mode = model.safe_get("Simulation", "rate_mode", default = False)
-            self.rateRadioBtn.setChecked(rate_mode)
-
-            self.fluxSpin.setValue(
-                model.safe_get("Simulation", "flux", default = 3))
-            
-            self.macroparticleSpin.setValue(
-                model.safe_get("Simulation", "macro_particle_weight", default = 5000))
-
-            interaction = model.safe_get(
-                'Simulation', 'interaction', default='Lithium18LevelInteraction'
-            )
-            if interaction:
-                idx = self.interactionCombo.findText(interaction)
-                if idx >= 0:
-                    self.interactionCombo.setCurrentIndex(idx)
-
+                interaction = model.safe_get('Simulation', 'interaction', default='Lithium18LevelInteraction')
+                if interaction:
+                    idx = self.interactionCombo.findText(interaction)
+                    if idx >= 0:
+                        self.interactionCombo.setCurrentIndex(idx)
         except Exception as e:
             # Show a warning and continue with defaults
             QMessageBox.warning(
@@ -186,32 +165,7 @@ class SimulationSettingsTab(QWidget):
                 f"Some simulation settings failed to load.\n\n{e}"
             )
 
-
-
-        finally:
-            # unblock signals
-
-            for w in (
-                self.resolutionSpin,
-                self.defaultStepSpin,
-                self.maxTimeSpin,
-                self.seed_spin,
-                self.interactionCombo,
-                self.rateRadioBtn,
-                self.fluxSpin,
-                self.macroparticleSpin
-            ):
-                w.blockSignals(False)
-            self._model.blockSignals(False)
-            self._estimate_atom_count()   
-
-
-    def _update_model(self, key, value):
-        if not self._model:
-            return
-        self._model.set(value, 'Simulation', key)
-
-
+        self._estimate_atom_count()
 
 
     def _on_rate_mode_toggled(self, checked):

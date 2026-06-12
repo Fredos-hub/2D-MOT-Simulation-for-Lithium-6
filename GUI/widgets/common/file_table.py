@@ -116,6 +116,10 @@ class _DraggableTable(QTableWidget):
             self.blockSignals(False)
         self.clearSelection()
         self.selectRow(drop)
+        # We already moved the rows ourselves. Report a non-move action so
+        # QAbstractItemView.startDrag() does NOT also call clearOrRemoveRows()
+        # and delete the just-dropped row.
+        event.setDropAction(Qt.IgnoreAction)
         event.accept()
         self.rowsReordered.emit()
 
@@ -179,7 +183,7 @@ class FileTableWidget(QWidget):
 
 
 
-    def updateStatus(self, filename, dirty: bool):
+    def update_status(self, filename, dirty: bool):
         """Called when the dirty state of a file changes."""
         if dirty:
             self._dirty_state.add(filename)
@@ -189,7 +193,7 @@ class FileTableWidget(QWidget):
         if row >= 0:
             self._refresh_row_display(row, filename)
 
-    def setValidationStatus(self, filename, errors):
+    def set_validation_status(self, filename, errors):
         """
         Set validation result for a file.
         errors: list of jsonschema ValidationError objects ([] = valid, None = unknown).
@@ -199,7 +203,7 @@ class FileTableWidget(QWidget):
         if row >= 0:
             self._refresh_row_display(row, filename)
 
-    def setSimulationStatus(self, filename, state: FileSimState | None):
+    def set_simulation_status(self, filename, state: FileSimState | None):
         """Set the simulation run state (PENDING / SIMULATING / DONE / None to clear)."""
         self._sim_state[filename] = state
         row = self._find_row(filename)

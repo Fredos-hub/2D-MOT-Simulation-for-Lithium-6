@@ -10,9 +10,10 @@ find_transition_strengths.py
 plots.py
 *.json
 *.csv
-CLAUDE.md
+*.md
 prototype/
 heatmaps/
 pushbeam_histograms/
 pushbeam_detuning_histograms.py
 trapped_atoms_heatmap.py
+.planning/

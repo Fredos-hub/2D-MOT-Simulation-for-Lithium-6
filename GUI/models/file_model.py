@@ -29,6 +29,15 @@ class FileModel(QObject):
     def is_dirty(self):
         return self._dirty
 
+    def data(self):
+        """The current (possibly unsaved) in-memory data dict."""
+        return self._current
+
+    def replace(self, data):
+        """Replace the entire in-memory document (e.g. from a raw-JSON editor)."""
+        self._current = data
+        self._update_dirty()
+
     def _update_dirty(self):
         dirty = (self._current != self._original)
         if dirty != self._dirty:

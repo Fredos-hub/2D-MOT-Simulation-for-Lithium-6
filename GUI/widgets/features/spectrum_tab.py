@@ -19,7 +19,7 @@ from matplotlib.backends.backend_qt5agg import (
 )
 from matplotlib.figure import Figure
 
-from GUI.widgets.vector_input_widget import VectorInputWidget
+from GUI.widgets.common.vector_input_widget import VectorInputWidget
 from src.spectrum_kernel import (
     BeamConfig,
     ATOM_NATURAL_LINEWIDTH,

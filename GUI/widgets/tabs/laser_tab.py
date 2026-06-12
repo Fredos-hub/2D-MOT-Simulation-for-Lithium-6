@@ -3,9 +3,10 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem, QComboBox, QMessageBox, QHeaderView, QSizePolicy, QFrame, QLabel
 )
 from PyQt5.QtCore import Qt
-from GUI.widgets.vector_input_widget import VectorInputWidget
-from GUI.widgets.edit_all_popup_widget import EditAllPopup
-from GUI.widgets.edit_defaults_popup_widget import EditDefaultsPopup
+from GUI.widgets.common.vector_input_widget import VectorInputWidget
+from GUI.widgets.dialogs.edit_all_popup_widget import EditAllPopup
+from GUI.widgets.dialogs.edit_defaults_popup_widget import EditDefaultsPopup
+from GUI.widgets.tabs.settings_tab_base import signals_blocked
 from pathlib import Path
 import json
 
@@ -116,22 +117,17 @@ class LasersSettingsTab(QWidget):
 
         # Connect cell editing and selection
         self.table.cellClicked.connect(lambda r, c: setattr(self, 'currentRow', r))
-        self.table.itemChanged.connect(self._handle_item_changed)
+        self.table.itemChanged.connect(self._on_item_changed)
 
     def setModel(self, model):
         self._model = model
-        self._model.blockSignals(True)
-        self.table.blockSignals(True)
-        try:
+        with signals_blocked(self.table):
             self.table.clearContents()
             laserList = self._model.get('Lasers', default=[]) or []
             self.table.setRowCount(len(laserList))
             for idx, cfg in enumerate(laserList):
                 self._populate_row(idx, cfg)
             self.table.setVerticalHeaderLabels([f"L{n}" for n in range(len(laserList))])
-        finally:
-            self.table.blockSignals(False)
-            self._model.blockSignals(False)
 
     def _populate_row(self, row, cfg):
         # Type
@@ -160,7 +156,7 @@ class LasersSettingsTab(QWidget):
         heli.currentTextChanged.connect(lambda v, r=row: self._update_model(r, 'handedness', int(v)))
         self.table.setCellWidget(row, 7, heli)
 
-    def _handle_item_changed(self, item):
+    def _on_item_changed(self, item):
         if not self._model: return
         row, col = item.row(), item.column()
         if col in self.columnConfig:

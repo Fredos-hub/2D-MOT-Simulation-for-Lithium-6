@@ -1,17 +1,17 @@
 # main_window.py
 import os
-from PyQt5.QtWidgets import QMainWindow, QTabWidget
+from PyQt5.QtWidgets import QMainWindow, QTabWidget, QMessageBox
 from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtCore import Qt, QSize
 
 # Import new shells
-from GUI.widgets.simulation_cockpit import SimulationCockpit
-from GUI.widgets.plotting import PlottingTab
+from GUI.widgets.features.simulation_cockpit import SimulationCockpit
+from GUI.widgets.features.plotting import PlottingTab
 from GUI.toolbar import ToolBar
 from GUI.menu_bar import CustomMenuBar
-from GUI.widgets.sample_generator import SampleGeneratorTab
-from GUI.widgets.incrementor_tab import IncrementorTab
-from GUI.widgets.spectrum_tab import SpectrumTab
+from GUI.widgets.features.sample_generator import SampleGeneratorTab
+from GUI.widgets.features.incrementor_tab import IncrementorTab
+from GUI.widgets.features.spectrum_tab import SpectrumTab
 
 
 class MainWindow(QMainWindow):
@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
         self.toolBar.save_action.triggered.connect(self.simulationCockpitTab.save_file)
         self.toolBar.save_all_action.triggered.connect(self.simulationCockpitTab.save_all)
         self.toolBar.run_action.triggered.connect(self.simulationCockpitTab.run_simulation_from_file_table)
+        self.toolBar.resume_run_action.triggered.connect(self.simulationCockpitTab.resume_from_checkpoint)
         self.toolBar.discard_action.triggered.connect(self.simulationCockpitTab.discard_changes)
         self.toolBar.discard_all_action.triggered.connect(self.simulationCockpitTab.discard_all_changes)
         self.toolBar.pause_action.triggered.connect(self.simulationCockpitTab.pause_simulation)
@@ -94,17 +95,30 @@ class MainWindow(QMainWindow):
         self.toolBar.cancel_action.triggered.connect(self.simulationCockpitTab.cancel_simulation)
         self.simulationCockpitTab.simulationStateChanged.connect(self._on_simulation_state_changed)
 
+        # Menu-bar wiring (mirrors the toolbar; reuses the same cockpit slots)
+        self.simulationCockpitTab.fileDirtyChanged.connect(self.menuBar.save_action.setEnabled)
+        self.menuBar.load_action.triggered.connect(self.simulationCockpitTab.open_directory)
+        self.menuBar.save_action.triggered.connect(self.simulationCockpitTab.save_file)
+        self.menuBar.exit_action.triggered.connect(self.close)
+        self.menuBar.run_action.triggered.connect(self.simulationCockpitTab.run_simulation_from_file_table)
+        self.menuBar.resume_run_action.triggered.connect(self.simulationCockpitTab.resume_from_checkpoint)
+        self.menuBar.pause_action.triggered.connect(self.simulationCockpitTab.pause_simulation)
+        self.menuBar.resume_action.triggered.connect(self.simulationCockpitTab.resume_simulation)
+        self.menuBar.cancel_action.triggered.connect(self.simulationCockpitTab.cancel_simulation)
+        # Sync initial enabled-states of run/pause/resume/cancel across both bars
+        self._on_simulation_state_changed("idle")
+
         # Handle dynamic scaling when moving between screens.
         # windowHandle() can be None until the widget is shown; guard it.
         if self.windowHandle() is not None:
-            self.windowHandle().screenChanged.connect(self.onScreenChanged)
+            self.windowHandle().screenChanged.connect(self._on_screen_changed)
         else:
             # Connect once the window handle exists (in case __init__ runs before show)
             self.windowHandleChanged.connect(self._onWindowHandleAvailable)
 
     def _onWindowHandleAvailable(self):
         if self.windowHandle() is not None:
-            self.windowHandle().screenChanged.connect(self.onScreenChanged)
+            self.windowHandle().screenChanged.connect(self._on_screen_changed)
 
     def apply_scale_for_screen(self, screen):
         """Compute scale from screen DPI and apply to app font and geometry."""
@@ -135,24 +149,45 @@ class MainWindow(QMainWindow):
         self.updateGeometry()
 
     def _on_simulation_state_changed(self, state: str):
-        """Update toolbar button states when simulation state changes."""
-        tb = self.toolBar
-        if state == "running":
-            tb.run_action.setEnabled(False)
-            tb.pause_action.setEnabled(True)
-            tb.resume_action.setEnabled(False)
-            tb.cancel_action.setEnabled(True)
-        elif state == "paused":
-            tb.run_action.setEnabled(False)
-            tb.pause_action.setEnabled(False)
-            tb.resume_action.setEnabled(True)
-            tb.cancel_action.setEnabled(True)
-        else:  # "idle"
-            tb.run_action.setEnabled(True)
-            tb.pause_action.setEnabled(False)
-            tb.resume_action.setEnabled(False)
-            tb.cancel_action.setEnabled(False)
+        """Update run/pause/resume/cancel enabled-states on both the toolbar and menu."""
+        running = state == "running"
+        paused  = state == "paused"
+        idle    = state == "idle"
+        # "Resume run" is only honest when idle AND a checkpoint is actually resumable.
+        resumable = idle and self.simulationCockpitTab.has_resumable_checkpoint()
+        for bar in (self.toolBar, self.menuBar):
+            bar.run_action.setEnabled(idle)
+            bar.resume_run_action.setEnabled(resumable)
+            bar.pause_action.setEnabled(running)
+            bar.resume_action.setEnabled(paused)
+            bar.cancel_action.setEnabled(running or paused)
 
-    def onScreenChanged(self, screen):
+    def _on_screen_changed(self, screen):
         """Slot called when the window moves to another screen."""
         self.apply_scale_for_screen(screen)
+
+    def closeEvent(self, event):
+        """Confirm before quitting if work is running or unsaved, then stop threads cleanly."""
+        cockpit = self.simulationCockpitTab
+        generator = self.SampleGeneratorTab
+
+        reasons = []
+        if cockpit.is_simulation_running() or generator.is_busy():
+            reasons.append("a job is still running")
+        if cockpit.has_unsaved_changes():
+            reasons.append("there are unsaved changes")
+
+        if reasons:
+            ans = QMessageBox.question(
+                self, "Quit",
+                "Quit anyway? " + " and ".join(reasons) + ".",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            if ans != QMessageBox.Yes:
+                event.ignore()
+                return
+
+        # Stop background threads before the widgets (and their threads) are destroyed.
+        cockpit.stop_simulation_and_wait()
+        generator.cancel_and_wait()
+        event.accept()

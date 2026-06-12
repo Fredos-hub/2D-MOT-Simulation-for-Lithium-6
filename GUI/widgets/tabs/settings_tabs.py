@@ -5,11 +5,11 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from PyQt5.QtWidgets import QStyledItemDelegate, QTabWidget, QSizePolicy, QVBoxLayout
-from GUI.widgets.simulation_tab import SimulationSettingsTab
-from GUI.widgets.atoms_tab import AtomsSettingsTab
-from GUI.widgets.laser_tab import LasersSettingsTab
-from GUI.widgets.magnetic_field_tab import MagneticFieldSettingsTab
-from GUI.widgets.boundaries_tab import BoundariesSettingsTab
+from GUI.widgets.tabs.simulation_tab import SimulationSettingsTab
+from GUI.widgets.tabs.atoms_tab import AtomsSettingsTab
+from GUI.widgets.tabs.laser_tab import LasersSettingsTab
+from GUI.widgets.tabs.magnetic_field_tab import MagneticFieldSettingsTab
+from GUI.widgets.tabs.boundaries_tab import BoundariesSettingsTab
 
 
 class ReadOnlyDelegate(QStyledItemDelegate):

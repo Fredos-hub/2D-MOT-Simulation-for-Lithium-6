@@ -1,18 +1,36 @@
 from src.maxwell_boltzmann_sampler import MaxwellBoltzmannLookupSampler
 import util.geometry as geometry
 import csv
+import os
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
 
 class OvenWorker(QThread):
     progress = pyqtSignal(int)            # emits 0–100
     finished = pyqtSignal(str)            # emits output filename
-    
+    error = pyqtSignal(str)               # emits an error message; finished is NOT emitted
+    cancelled = pyqtSignal()              # emits when the user aborts
+
+    # Safety cap: with a geometry that rejects (almost) all atoms the collect
+    # loop would otherwise spin forever. Abort once this many are generated.
+    MAX_GENERATED = 100_000_000
+
     def __init__(self, params, parent=None):
         super().__init__(parent)
         self.params = params
+        self._cancel = False
+
+    def cancel(self):
+        """Request cooperative cancellation; the run loop checks this flag."""
+        self._cancel = True
 
     def run(self):
+        try:
+            self._run()
+        except Exception as e:
+            self.error.emit(str(e))
+
+    def _run(self):
         # Unpack & convert geometry to meters
         m_u        = self.params['atom_mass']
         pdf_str    = self.params['distribution']
@@ -41,6 +59,7 @@ class OvenWorker(QThread):
         n_collected = 0
         batch_size  = 10_000
 
+        cancelled = False
         with open(output_file, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             # write header (no acceptance ratio per row)
@@ -51,7 +70,17 @@ class OvenWorker(QThread):
 
             # generate and collect
             while n_collected < n_target:
+                if self._cancel:
+                    cancelled = True
+                    break
                 total_generated += batch_size
+                if total_generated > self.MAX_GENERATED:
+                    raise RuntimeError(
+                        f"Generated {total_generated:,} atoms but only "
+                        f"{n_collected}/{n_target} passed the apertures. "
+                        f"The oven/aperture geometry rejects (almost) all atoms — "
+                        f"check the configuration."
+                    )
 
                 # positions on oven mouth (disk)
                 u_rad   = np.random.rand(batch_size)
@@ -99,12 +128,22 @@ class OvenWorker(QThread):
                     pct = int(n_collected / n_target * 100)
                     self.progress.emit(pct)
 
-            # write summary stats as columns at end
-            writer.writerow([])  # blank line separator
-            writer.writerow(['distribution_fraction', 'capture_ratio'])
-            capture_ratio = n_collected / total_generated if total_generated > 0 else 0.0
-            writer.writerow([distribution_fraction, capture_ratio])
+            if not cancelled:
+                # write summary stats as columns at end
+                writer.writerow([])  # blank line separator
+                writer.writerow(['distribution_fraction', 'capture_ratio'])
+                capture_ratio = n_collected / total_generated if total_generated > 0 else 0.0
+                writer.writerow([distribution_fraction, capture_ratio])
 
-            # done
-            self.progress.emit(100)
-            self.finished.emit(output_file)
+        if cancelled:
+            # Drop the incomplete file so a partial sample is never picked up.
+            try:
+                os.remove(output_file)
+            except OSError:
+                pass
+            self.cancelled.emit()
+            return
+
+        # done
+        self.progress.emit(100)
+        self.finished.emit(output_file)

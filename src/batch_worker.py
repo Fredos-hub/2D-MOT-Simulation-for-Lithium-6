@@ -7,6 +7,7 @@ from datetime import datetime
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
 from src.parameters import Parameters, ParameterError
+from src import checkpoint
 from util.simulation_typing import ECSAtoms
 
 
@@ -23,13 +24,16 @@ class BatchSimulationWorker(QThread):
     fileStarted = pyqtSignal(str, int)    # filename, total_steps
 
 
-    def __init__(self, directory: str, file_names: list, parent=None, buffer_size: int = 10000):
+    def __init__(self, directory: str, file_names: list, parent=None, buffer_size: int = 10000,
+                 checkpoint_interval: float = 30.0, resume_checkpoint_dir: str = None):
         super().__init__(parent)
         self.directory = directory
         self.file_names = file_names
         self._pause = False
         self._stop = False
         self._stop_current = False   # cancel only the current file, then continue
+        self.checkpoint_interval = checkpoint_interval   # D-01: wall-clock save cadence (s)
+        self.resume_checkpoint_dir = resume_checkpoint_dir  # set => run() resumes from this dir
 
         # --- file state ---
         self.batch_root = None          # path to simulation_results
@@ -259,16 +263,46 @@ class BatchSimulationWorker(QThread):
     def run(self):
         total_files = len(self.file_names)
 
-        try:
-            # create batch folder only once, before processing simulations
-            self.ensure_batch_root_and_folder()
-        except Exception as e:
-            self.statusChanged.emit(f"Failed to create batch folder: {e}")
-            self.batch_folder = None
+        # --- Resume mode setup (D-03/D-06/D-07): meta is authoritative for whole-batch resume ---
+        resume_arrays = None
+        resume_idx = None
+        resume_current_step = None
+        if self.resume_checkpoint_dir:
+            try:
+                resume_arrays, resume_meta = checkpoint.load_checkpoint(self.resume_checkpoint_dir)
+                batch_meta = resume_meta["batch"]
+                self.batch_folder = batch_meta["batch_folder"]
+                self.batch_root = os.path.dirname(self.batch_folder)
+                # Falsy directory / file_names ([] or None) => take from checkpoint meta (D-07).
+                if not self.directory:
+                    self.directory = batch_meta["directory"]
+                if not self.file_names:
+                    self.file_names = list(batch_meta["file_names"])
+                total_files = len(self.file_names)
+                resume_idx = int(batch_meta["current_file_idx"])
+                resume_current_step = int(resume_meta["current_step"])
+                self.statusChanged.emit(
+                    f"Resuming from checkpoint: {self.resume_checkpoint_dir} "
+                    f"(file {resume_idx + 1}/{total_files}, step {resume_current_step})"
+                )
+            except Exception as e:
+                self.statusChanged.emit(f"Failed to load checkpoint for resume: {e}")
+                self.finished.emit()
+                return
+        else:
+            try:
+                # create batch folder only once, before processing simulations
+                self.ensure_batch_root_and_folder()
+            except Exception as e:
+                self.statusChanged.emit(f"Failed to create batch folder: {e}")
+                self.batch_folder = None
 
         for idx, filename in enumerate(self.file_names):
             if self._stop:
                 break
+            # Resume: skip files completed before the checkpoint (D-07).
+            if resume_idx is not None and idx < resume_idx:
+                continue
 
             # create run folder (each simulation run gets run_{idx})
             try:
@@ -277,19 +311,14 @@ class BatchSimulationWorker(QThread):
                 self.statusChanged.emit(f"Failed to create run folder for {filename}: {e}")
                 run_folder = None
 
-            # 1) Build simulation
-
-
             self.statusChanged.emit(f"---------------Building {filename} ({idx+1}/{total_files})------------------")
 
             params = Parameters(os.path.join(self.directory, filename), status_callback=self.statusChanged.emit)
             self.fileStarted.emit(filename, params.max_step_number)
-            # TODO: Consider moving to loading of the files.
             if not params.is_valid():
                 # single GUI message referencing the errors and then full listing once
                 self.statusChanged.emit(f"Configuration invalid: {len(params.get_errors())} error(s). See details below.")
                 self.statusChanged.emit("---- Validation errors ----\n" + "\n".join(params.get_errors()))
-                # optionally save the invalid config for inspection
                 if run_folder is not None and isinstance(params.parameters, dict):
                     try:
                         cfg_path = os.path.join(run_folder, "config_invalid.json")
@@ -304,22 +333,18 @@ class BatchSimulationWorker(QThread):
             try:
                 sim = params.build_simulation()
             except ParameterError as exc:
-                # build_simulation reports runtime/fatal construction issues here
                 msg = f"Failed to build simulation: {exc}"
-                # include parsing warnings if any
                 if params.get_errors():
                     msg += "\nWarnings:\n" + "\n".join(params.get_errors())
                 self.statusChanged.emit(msg)
                 self.fileFinished.emit(filename)
                 continue
 
-            # at this point sim exists and is safe to use
             self.statusChanged.emit("Compiling... (this may take a couple of minutes)")
             try:
                 sim.warmup()
             except Exception as e:
                 self.statusChanged.emit(f"Warmup failed: {e}")
-                # ensure final cleanup
                 try:
                     sim.finalize()
                 except Exception:
@@ -327,12 +352,33 @@ class BatchSimulationWorker(QThread):
                 self.fileFinished.emit(filename)
                 continue
 
+            # Resume: inject restored state AFTER warmup (warmup mutates atom 0), BEFORE the loop.
+            is_resume_file = (resume_idx is not None and idx == resume_idx and resume_arrays is not None)
+            if is_resume_file:
+                try:
+                    checkpoint.restore_atom_state(sim, resume_arrays)
+                    sim.current_step = resume_current_step
+                    if run_folder is not None:
+                        # result.csv already has its header — don't re-emit it, and restore the
+                        # write-options dict make_run_folder cleared (else write_step_results crashes).
+                        self.run_header_written[idx] = True
+                        self.run_write_options[idx] = {
+                            "write_position": True, "write_velocity": True,
+                            "write_subjective_time": True, "write_excitation_count": True,
+                            "write_ground_state": True,
+                        }
+                    self.statusChanged.emit(f"Restored atom state; continuing {filename} from step {sim.current_step}.")
+                except Exception as e:
+                    self.statusChanged.emit(f"Failed to restore checkpoint state for {filename}: {e}")
+            resume_arrays = None  # consume payload; later files run normally
+
             self.statusChanged.emit("Starting simulation...")
 
             total_steps = sim.max_step_number
             start_time = time.perf_counter()
             last_update_time = start_time
             last_update_iter = sim.current_step
+            last_checkpoint_time = start_time
 
             try:
                 # 3) Run simulation steps
@@ -354,13 +400,9 @@ class BatchSimulationWorker(QThread):
                     while self._pause:
                         self.msleep(100)
 
-                    # inside run() for each step i:
                     cont, current_atom_states, returned_excitation_counter, alive_idx, exc_hist = sim.step(i)
-                    
-                    # prefer the returned excitation counter (falls back to sim attr)
                     excitation_counter = returned_excitation_counter if returned_excitation_counter is not None else getattr(sim, "excitation_counter", None)
 
-                    # write (buffered)
                     if alive_idx.size > 0 and run_folder is not None:
                         try:
                             self.write_step_results(
@@ -394,6 +436,22 @@ class BatchSimulationWorker(QThread):
                         last_update_time = now
                         last_update_iter = i+1
 
+                    # Periodic checkpoint (D-01); flush CSV first so result.csv matches current_step (D-06).
+                    if run_folder is not None and (now - last_checkpoint_time) >= self.checkpoint_interval:
+                        try:
+                            self.flush_run_buffer(idx)
+                            batch_state = {
+                                "directory": self.directory,
+                                "file_names": self.file_names,
+                                "current_file_idx": idx,
+                                "batch_folder": self.batch_folder,
+                                "completed_files": self.file_names[:idx],
+                            }
+                            checkpoint.save_checkpoint(sim, batch_state, run_folder)
+                        except Exception as e:
+                            self.statusChanged.emit(f"Checkpoint save failed (run {idx} step {i}): {e}")
+                        last_checkpoint_time = now
+
                     if not cont:
                         print(exc_hist)
                         self.statusChanged.emit("Simulation ended early: no atoms alive.")
@@ -402,15 +460,12 @@ class BatchSimulationWorker(QThread):
 
                 # Ensure final flush / close of this run
                 if run_folder is not None:
-                    # write config.json next to result.csv using the original parsed JSON
                     try:
                         cfg_path = os.path.join(run_folder, "config.json")
-                        # Prefer to save the original parsed dictionary for compactness
                         if hasattr(params, "parameters") and isinstance(params.parameters, dict):
                             with open(cfg_path, "w", encoding="utf-8") as cfgfh:
                                 json.dump(params.parameters, cfgfh, indent=2)
                         else:
-                            # fallback to a minimal export of attributes
                             minimal = {
                                 "max_step_number": getattr(params, "max_step_number", None),
                                 "step_resolution": getattr(params, "step_resolution", None),
@@ -427,6 +482,8 @@ class BatchSimulationWorker(QThread):
             except Exception as e:
                 self.statusChanged.emit(f"Exception during simulation ({filename}): {e}")
             finally:
+                # D-08 ORDERING: read interruption flags BEFORE the _stop_current reset below.
+                interrupted = self._stop or self._stop_current
                 try:
                     self.close_run(idx)
                 except Exception:
@@ -435,6 +492,15 @@ class BatchSimulationWorker(QThread):
                 duration = time.perf_counter() - start_time
                 self.statusChanged.emit(f"----------------Completed {filename} in {duration:.2f}s.----------------")
                 self.fileFinished.emit(filename)
+                # D-08: delete checkpoint only on a clean finish; keep it when interrupted (criterion 2).
+                if run_folder is not None and not interrupted:
+                    for fn in ("checkpoint.json", "checkpoint.npz"):
+                        p = os.path.join(run_folder, fn)
+                        try:
+                            if os.path.isfile(p):
+                                os.remove(p)
+                        except Exception:
+                            pass
                 # Reset per-file cancel flag and release memory
                 self._stop_current = False
                 del sim

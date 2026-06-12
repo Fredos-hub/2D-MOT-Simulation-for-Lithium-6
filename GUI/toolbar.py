@@ -12,7 +12,7 @@ class ToolBar(QToolBar):
         # Toolbar action for loading a file
         self.load_action = QAction(self.style().standardIcon(QStyle.SP_DialogOpenButton), "Open Directory", self)
         self.load_action.setShortcut("Ctrl+L")
-        self.load_action.setStatusTip("Open Directorx")
+        self.load_action.setStatusTip("Open Directory")
 
         # Toolbar action for creating a new file
         self.new_action = QAction(self.style().standardIcon(QStyle.SP_FileIcon), "New", self)
@@ -32,13 +32,13 @@ class ToolBar(QToolBar):
 
 
         self.discard_action = QAction(self.style().standardIcon(QStyle.SP_DialogOkButton), "Discard Changes", self)
-        self.discard_action.setShortcut("Ctrl + D")
+        self.discard_action.setShortcut("Ctrl+D")
         self.discard_action.setStatusTip("Discard Changes to the current file")
         self.discard_action.setEnabled(False)
 
 
         self.discard_all_action = QAction(self.style().standardIcon(QStyle.SP_DialogResetButton), "Discard All Changes", self)
-        self.discard_all_action.setShortcut("Ctrl + Shift + D")
+        self.discard_all_action.setShortcut("Ctrl+Shift+D")
         self.discard_all_action.setStatusTip("Discard All Changes")
         self.discard_all_action.setEnabled(False)
 
@@ -46,7 +46,7 @@ class ToolBar(QToolBar):
         self.run_action = QAction(self.style().standardIcon(QStyle.SP_MediaPlay), "Run", self)
         self.run_action.setShortcut("Ctrl+R")
         self.run_action.setStatusTip("Run the current file")
-        self.run_action.setEnabled(True)  # Initially disabled
+        self.run_action.setEnabled(True)  # Enabled by default
 
         # Toolbar action for pausing simulation
         self.pause_action = QAction(self.style().standardIcon(QStyle.SP_MediaPause), "Pause", self)
@@ -54,16 +54,21 @@ class ToolBar(QToolBar):
         self.pause_action.setStatusTip("Pause the current simulation")
         self.pause_action.setEnabled(False)  # Initially disabled
 
-        # Toolbar action for resuming simulation
-        self.resume_action = QAction(self.style().standardIcon(QStyle.SP_MediaSeekForward), "Resume", self)
+        # Toolbar action for resuming (UNPAUSING) a paused simulation
+        self.resume_action = QAction(self.style().standardIcon(QStyle.SP_MediaSeekForward), "Unpause", self)
         self.resume_action.setShortcut("Ctrl+Shift+R")
-        self.resume_action.setStatusTip("Resume the current simulation")
+        self.resume_action.setStatusTip("Unpause the paused simulation")
         self.resume_action.setEnabled(False)  # Initially disabled
+
+        # Toolbar action for resuming an INTERRUPTED run from its latest checkpoint (distinct from unpause)
+        self.resume_run_action = QAction(self.style().standardIcon(QStyle.SP_BrowserReload), "Resume run", self)
+        self.resume_run_action.setStatusTip("Continue an interrupted run from the latest checkpoint")
+        self.resume_run_action.setEnabled(True)  # available when idle
 
 
         # Toolbar action for canceling simulation
         self.cancel_action = QAction(self.style().standardIcon(QStyle.SP_DialogCancelButton), "Cancel", self)
-        self.cancel_action.setShortcut("Ctrl+C")
+        self.cancel_action.setShortcut("Ctrl+Shift+C")
         self.cancel_action.setStatusTip("Cancel the current operation")
         self.cancel_action.setEnabled(False)
 
@@ -78,6 +83,7 @@ class ToolBar(QToolBar):
         self.addAction(self.discard_all_action)
         self.addSeparator()
         self.addAction(self.run_action)
+        self.addAction(self.resume_run_action)
         self.addAction(self.pause_action)
         self.addAction(self.resume_action)
         self.addAction(self.cancel_action)
