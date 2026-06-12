@@ -54,11 +54,16 @@ class ToolBar(QToolBar):
         self.pause_action.setStatusTip("Pause the current simulation")
         self.pause_action.setEnabled(False)  # Initially disabled
 
-        # Toolbar action for resuming simulation
-        self.resume_action = QAction(self.style().standardIcon(QStyle.SP_MediaSeekForward), "Resume", self)
+        # Toolbar action for resuming (UNPAUSING) a paused simulation
+        self.resume_action = QAction(self.style().standardIcon(QStyle.SP_MediaSeekForward), "Unpause", self)
         self.resume_action.setShortcut("Ctrl+Shift+R")
-        self.resume_action.setStatusTip("Resume the current simulation")
+        self.resume_action.setStatusTip("Unpause the paused simulation")
         self.resume_action.setEnabled(False)  # Initially disabled
+
+        # Toolbar action for resuming an INTERRUPTED run from its latest checkpoint (distinct from unpause)
+        self.resume_run_action = QAction(self.style().standardIcon(QStyle.SP_BrowserReload), "Resume run", self)
+        self.resume_run_action.setStatusTip("Continue an interrupted run from the latest checkpoint")
+        self.resume_run_action.setEnabled(True)  # available when idle
 
 
         # Toolbar action for canceling simulation
@@ -78,6 +83,7 @@ class ToolBar(QToolBar):
         self.addAction(self.discard_all_action)
         self.addSeparator()
         self.addAction(self.run_action)
+        self.addAction(self.resume_run_action)
         self.addAction(self.pause_action)
         self.addAction(self.resume_action)
         self.addAction(self.cancel_action)

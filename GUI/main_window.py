@@ -87,6 +87,7 @@ class MainWindow(QMainWindow):
         self.toolBar.save_action.triggered.connect(self.simulationCockpitTab.save_file)
         self.toolBar.save_all_action.triggered.connect(self.simulationCockpitTab.save_all)
         self.toolBar.run_action.triggered.connect(self.simulationCockpitTab.run_simulation_from_file_table)
+        self.toolBar.resume_run_action.triggered.connect(self.simulationCockpitTab.resume_from_checkpoint)
         self.toolBar.discard_action.triggered.connect(self.simulationCockpitTab.discard_changes)
         self.toolBar.discard_all_action.triggered.connect(self.simulationCockpitTab.discard_all_changes)
         self.toolBar.pause_action.triggered.connect(self.simulationCockpitTab.pause_simulation)
@@ -100,6 +101,7 @@ class MainWindow(QMainWindow):
         self.menuBar.save_action.triggered.connect(self.simulationCockpitTab.save_file)
         self.menuBar.exit_action.triggered.connect(self.close)
         self.menuBar.run_action.triggered.connect(self.simulationCockpitTab.run_simulation_from_file_table)
+        self.menuBar.resume_run_action.triggered.connect(self.simulationCockpitTab.resume_from_checkpoint)
         self.menuBar.pause_action.triggered.connect(self.simulationCockpitTab.pause_simulation)
         self.menuBar.resume_action.triggered.connect(self.simulationCockpitTab.resume_simulation)
         self.menuBar.cancel_action.triggered.connect(self.simulationCockpitTab.cancel_simulation)
@@ -151,8 +153,11 @@ class MainWindow(QMainWindow):
         running = state == "running"
         paused  = state == "paused"
         idle    = state == "idle"
+        # "Resume run" is only honest when idle AND a checkpoint is actually resumable.
+        resumable = idle and self.simulationCockpitTab.has_resumable_checkpoint()
         for bar in (self.toolBar, self.menuBar):
             bar.run_action.setEnabled(idle)
+            bar.resume_run_action.setEnabled(resumable)
             bar.pause_action.setEnabled(running)
             bar.resume_action.setEnabled(paused)
             bar.cancel_action.setEnabled(running or paused)

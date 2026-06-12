@@ -24,10 +24,12 @@ class CustomMenuBar(QMenuBar):
         # Simulation Menu with simulation control actions.
         simulation_menu = self.addMenu("Simulation")
         self.run_action = QAction(QIcon(), "Run", self)
+        self.resume_run_action = QAction(QIcon(), "Resume run", self)
         self.pause_action = QAction(QIcon(), "Pause", self)
-        self.resume_action = QAction(QIcon(), "Resume", self)
+        self.resume_action = QAction(QIcon(), "Unpause", self)
         self.cancel_action = QAction(QIcon(), "Cancel", self)
         simulation_menu.addAction(self.run_action)
+        simulation_menu.addAction(self.resume_run_action)
         simulation_menu.addAction(self.pause_action)
         simulation_menu.addAction(self.resume_action)
         simulation_menu.addAction(self.cancel_action)

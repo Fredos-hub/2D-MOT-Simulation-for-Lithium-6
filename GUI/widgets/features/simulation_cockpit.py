@@ -12,6 +12,9 @@ from GUI.widgets.common.file_table import FileTableWidget, FileSimState
 from GUI.widgets.tabs.settings_tabs import SettingsTabsWidget
 from GUI.models.file_model import FileModel
 from src.batch_worker import BatchSimulationWorker
+import src.batch_worker as batch_worker
+from src import checkpoint
+import re
 from jsonschema import Draft7Validator
 
 schema_version = 1
@@ -733,6 +736,59 @@ class SimulationCockpit(QWidget):
         # Re-validate and update status after dialog closes (user may have saved changes)
         self._refresh_file_display(filename, model)
 
+    def resume_from_checkpoint(self):
+        """Continue an interrupted run from its latest checkpoint (distinct from unpause)."""
+        if self.simulation_running_flag:
+            QMessageBox.warning(self, "Simulation", "Simulation already running.")
+            return
+
+        checkpoint_dir = self._find_latest_resumable_checkpoint()
+        if checkpoint_dir is None:
+            QMessageBox.information(self, "Resume run", "No resumable checkpoint found.")
+            return
+
+        # Empty file list is intentional: the worker repopulates directory/file_names from the
+        # checkpoint meta for whole-batch resume (D-07).
+        self.batch_worker = BatchSimulationWorker(self.opened_directory, [], resume_checkpoint_dir=checkpoint_dir)
+        self.batch_worker.progressChanged.connect(self.progressBar.setValue)
+        self.batch_worker.statusChanged.connect(self._on_status_update)
+        self.batch_worker.fileStarted.connect(self._on_file_started)
+        self.batch_worker.fileFinished.connect(self._on_file_finished)
+        self.batch_worker.finished.connect(self._on_all_finished)
+        self.simulation_running_flag = True
+        self.simulationStateChanged.emit("running")
+        self.batch_worker.start()
+
+    def _find_latest_resumable_checkpoint(self):
+        """Scan simulation_results batch folders NEWEST-FIRST and return the first dir with a
+        resumable checkpoint, or None. A later CLEAN batch deletes its own checkpoint (D-08),
+        so do not stop at the newest folder if it has none."""
+        results_root = os.path.join(batch_worker.REPO_ROOT, "simulation_results")
+        if not os.path.isdir(results_root):
+            return None
+        entries = []
+        for name in os.listdir(results_root):
+            full = os.path.join(results_root, name)
+            if not os.path.isdir(full):
+                continue
+            m = re.match(r"^(\d{2})_(\d{2})_(\d{2})_(\d+)$", name)  # DD_MM_YY_N
+            if m:
+                dd, mm, yy, n = (int(g) for g in m.groups())
+                key = (yy, mm, dd, n)
+            else:
+                key = (-1, -1, -1, os.path.getmtime(full))
+            entries.append((key, full))
+        entries.sort(reverse=True)  # newest first
+        for _, folder in entries:
+            ckpt = checkpoint.find_resumable_checkpoint(folder)
+            if ckpt is not None:
+                return ckpt
+        return None
+
+    def has_resumable_checkpoint(self) -> bool:
+        """True if a resumable checkpoint exists (used to gate the Resume-run action)."""
+        return self._find_latest_resumable_checkpoint() is not None
+
     def pause_simulation(self):
         if self.batch_worker:
             self.batch_worker.pause()
@@ -750,6 +806,12 @@ class SimulationCockpit(QWidget):
         msg.setWindowTitle("Cancel Simulation")
         msg.setText("What would you like to cancel?")
         msg.setIcon(QMessageBox.Question)
+        msg.setInformativeText(
+            "Cancel current: stop the running file — partial results are saved and the run stays "
+            "resumable from its last checkpoint — then continue with any remaining queued files.\n"
+            "Cancel all: stop everything, including remaining queued files.\n"
+            "Continue: keep running."
+        )
         btn_current = msg.addButton("Cancel current", QMessageBox.DestructiveRole)
         btn_all     = msg.addButton("Cancel all",     QMessageBox.DestructiveRole)
         btn_keep    = msg.addButton("Continue",       QMessageBox.RejectRole)
