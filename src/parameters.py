@@ -263,6 +263,12 @@ class Parameters:
         self.flux = float(sim["flux"] * 1e9)
         self.macro_particle_weight = float(sim["macro_particle_weight"])
         self.rate_mode = bool(sim["rate_mode"])
+        # Oven cutoff: stop injecting atoms at this time (ms in JSON), so the run
+        # can continue past it to let pushed atoms reach the detector. <=0/absent
+        # means inject for the whole simulation (backward-compatible).
+        cutoff = sim.get("injection_cutoff_time", None)
+        self.injection_cutoff_time = (float(cutoff * 1e-3)
+                                      if cutoff and cutoff > 0 else self.simulated_time)
 
     def _parse_atoms(self) -> None:
         atom_data = self.parameters["Atoms"]
@@ -478,7 +484,7 @@ class Parameters:
                 while True:
                     dt = rng.exponential(1.0 / rate)
                     t += dt
-                    if t > self.simulated_time:
+                    if t > self.injection_cutoff_time:
                         break
                     times.append(t)
                 return len(times), np.array(times, dtype=np.float64)
@@ -501,7 +507,7 @@ class Parameters:
             while True:
                 dt = rng.exponential(1.0 / rate)
                 t += dt
-                if t > self.simulated_time:
+                if t > self.injection_cutoff_time:
                     break
                 times.append(t)
             return len(times), np.array(times, dtype=np.float64)

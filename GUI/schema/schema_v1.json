@@ -307,6 +307,7 @@
         "flux": { "type": "number", "minimum": 0, "default": 6.7 },
         "macro_particle_weight": { "type": "number", "minimum": 1, "default": 2000 },
         "default_time_step": { "type": "number", "minimum": 0, "default": 10.0 },
+        "injection_cutoff_time": { "type": "number", "minimum": 0 },
         "step_mode": { "type": "string" },
         "step_limit": { "type": "integer", "minimum": 1 },
         "max_step_number": { "type": "integer", "minimum": 1 }
