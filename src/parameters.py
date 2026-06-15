@@ -329,8 +329,14 @@ class Parameters:
                     "detuning": float(laser["detuning"]) * self.natural_linewidth,
                     "handedness": int(laser["handedness"]),
                     "type": laser.get("type", "other"),
+                    # active interval [t_on, t_off) in seconds; omitted/null t_off = always on
+                    "t_on": float(laser.get("t_on", 0.0)) * 1e-3,
+                    "t_off": float(laser["t_off"]) * 1e-3 if laser.get("t_off") is not None else np.inf,
                 }
             )
+        for index, entry in enumerate(parsed):
+            if entry["t_off"] <= entry["t_on"]:
+                self.errors.append(f"Laser #{index}: t_off must be greater than t_on.")
         self.lasers = parsed
 
     def _parse_boundaries(self) -> None:
@@ -435,6 +441,8 @@ class Parameters:
                 simulated_time=self.simulated_time,
                 boundaries=self.boundaries,
                 default_timestep=self.default_time_step,
+                laser_t_on=np.array([l["t_on"] for l in self.lasers], dtype=np.float64),
+                laser_t_off=np.array([l["t_off"] for l in self.lasers], dtype=np.float64),
             )
         except Exception as exc:
             msg = f"Failed to construct Simulation: {exc}"

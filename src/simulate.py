@@ -18,7 +18,9 @@ class Simulation():
                  simulated_time: float,
                  boundaries: np.ndarray,
                  default_timestep: float = 1e-5,
-                 voxel_size: float = 1e-5):
+                 voxel_size: float = 1e-5,
+                 laser_t_on: np.ndarray = None,
+                 laser_t_off: np.ndarray = None):
 
         # setup objects
         self.lasers = lasers
@@ -34,6 +36,19 @@ class Simulation():
         self.step_resolution = step_resolution
         self.default_timestep = default_timestep
         self.voxel_size = voxel_size
+
+        # Laser active intervals [t_on, t_off) in global sim time; default always-on.
+        # Edges are snapped to step indices so that e.g. t_on = 3*dt is not missed
+        # by one ulp when comparing against i*dt.
+        n_lasers = lasers.n_lasers
+        t_on = laser_t_on if laser_t_on is not None else np.zeros(n_lasers)
+        t_off = laser_t_off if laser_t_off is not None else np.full(n_lasers, np.inf)
+        self.laser_on_step = np.rint(t_on / default_timestep).astype(np.int64)
+        self.laser_off_step = np.full(n_lasers, np.iinfo(np.int64).max, dtype=np.int64)
+        finite = np.isfinite(t_off)
+        self.laser_off_step[finite] = np.rint(t_off[finite] / default_timestep).astype(np.int64)
+        self._base_beam_powers = lasers.beam_powers.copy()
+        self._base_intensities = lasers.initial_intensities.copy()
 
         # Counter for absorption/emission events for each atom.
         self.excitation_counter = np.zeros(self.simulation_atoms.n, dtype=np.int64)
@@ -92,7 +107,12 @@ class Simulation():
             # return consistent tuple
             return False, self.simulation_atoms, self.excitation_counter, alive_ids, self.excitation_hist
 
- 
+        # 2) Apply laser active intervals: zero inactive beams, restore active ones.
+        # Idempotent each step, so this stays correct across checkpoint resume.
+        active = (self.laser_on_step <= i) & (i < self.laser_off_step)
+        self.lasers.beam_powers[:] = np.where(active, self._base_beam_powers, 0.0)
+        self.lasers.initial_intensities[:] = np.where(active, self._base_intensities, 0.0)
+
         # 3) Do physics
         absorption_and_emission_default_timestep(
             atom_ids=alive_ids,
