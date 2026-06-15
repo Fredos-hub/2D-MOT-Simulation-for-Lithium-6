@@ -85,7 +85,7 @@ class LasersSettingsTab(QWidget):
         panel.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Expanding)
 
         # Table with built-in scrollbars
-        self.table = QTableWidget(0, 8)
+        self.table = QTableWidget(0, 10)
         self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # Allow horizontal scrolling when needed
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -103,16 +103,20 @@ class LasersSettingsTab(QWidget):
         headers = [
             "Type", "Frequency (MHz)", "Detuning (Γ)",
             "Power (mW)", "Waist (mm)", "Origin",
-            "Direction", "Handedness"
+            "Direction", "Handedness",
+            "t_on (ms)", "t_off (ms)"
         ]
         self.table.setHorizontalHeaderLabels(headers)
 
-        # Data column configuration
+        # Data column configuration; 'optional' columns map empty cell <-> null
         self.columnConfig = {
             1: {'key': 'beam_frequency', 'factor': 1,    'format': '{:.3f}'},
             2: {'key': 'detuning',       'factor': 1,    'format': '{:.1f}'},
             3: {'key': 'beam_power',     'factor': 1e3, 'format': '{:.1f}'},
-            4: {'key': 'waist',          'factor': 1e3, 'format': '{:.1f}'}
+            4: {'key': 'waist',          'factor': 1e3, 'format': '{:.1f}'},
+            8: {'key': 't_on',           'factor': 1,   'format': '{:.2f}'},
+            9: {'key': 't_off',          'factor': 1,   'format': '{:.2f}',
+                'optional': True, 'default': None},
         }
 
         # Connect cell editing and selection
@@ -138,8 +142,9 @@ class LasersSettingsTab(QWidget):
         self.table.setCellWidget(row, 0, combo)
         # Numeric
         for col, info in self.columnConfig.items():
-            val = cfg.get(info['key'], 0.0) * info['factor']
-            item = QTableWidgetItem(info['format'].format(val))
+            raw = cfg.get(info['key'], info.get('default', 0.0))
+            text = '' if raw is None else info['format'].format(raw * info['factor'])
+            item = QTableWidgetItem(text)
             item.setFlags(item.flags() | Qt.ItemIsEditable)
             self.table.setItem(row, col, item)
         # Vectors
@@ -161,11 +166,15 @@ class LasersSettingsTab(QWidget):
         row, col = item.row(), item.column()
         if col in self.columnConfig:
             info = self.columnConfig[col]
-            try:
-                val = float(item.text()) / info['factor']
-            except ValueError:
-                QMessageBox.warning(self, 'Invalid', f'"{item.text()}" not a number')
-                return
+            text = item.text().strip()
+            if info.get('optional') and not text:
+                val = None
+            else:
+                try:
+                    val = float(text) / info['factor']
+                except ValueError:
+                    QMessageBox.warning(self, 'Invalid', f'"{item.text()}" not a number')
+                    return
             lst = list(self._model.get('Lasers', default=[]) or [])
             if row < len(lst):
                 lst[row][info['key']] = val

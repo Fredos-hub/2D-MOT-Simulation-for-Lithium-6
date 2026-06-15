@@ -257,7 +257,9 @@
           "beam_power": { "type": "number", "minimum": 0, "default": 0.05 },
           "beam_frequency": { "type": "number", "minimum": 0, "default": 446799571.079 },
           "detuning": { "type": "number", "default": -7.5 },
-          "handedness": { "type": "integer", "enum": [-1,0, 1], "default": 1 }
+          "handedness": { "type": "integer", "enum": [-1,0, 1], "default": 1 },
+          "t_on": { "type": "number", "minimum": 0, "default": 0.0 },
+          "t_off": { "type": ["number", "null"], "minimum": 0, "default": null }
         },
         "additionalProperties": false
       }
@@ -305,6 +307,7 @@
         "flux": { "type": "number", "minimum": 0, "default": 6.7 },
         "macro_particle_weight": { "type": "number", "minimum": 1, "default": 2000 },
         "default_time_step": { "type": "number", "minimum": 0, "default": 10.0 },
+        "injection_cutoff_time": { "type": "number", "minimum": 0 },
         "step_mode": { "type": "string" },
         "step_limit": { "type": "integer", "minimum": 1 },
         "max_step_number": { "type": "integer", "minimum": 1 }

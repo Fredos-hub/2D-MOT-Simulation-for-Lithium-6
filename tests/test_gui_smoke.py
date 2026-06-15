@@ -1,7 +1,7 @@
 """
 GUI construction smoke test for the post-refactor GUI package layout.
 
-MainWindow and all five top-level tabs (Simulation Cockpit, Sample Generator,
+YMainWindow and all five top-level tabs (Simulation Cockpit, Sample Generator,
 Incrementor, Plotting, Spectrum) construct without raising under a headless Qt
 platform. The settings tabs (simulation / atoms / lasers / magnetic field /
 boundaries) are built inside SimulationCockpit, so constructing MainWindow

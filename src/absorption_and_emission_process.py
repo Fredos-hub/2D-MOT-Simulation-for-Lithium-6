@@ -12,6 +12,11 @@ import math
 from util.simulation_typing import ECSLasers, ECSAtoms, MagneticField, LightAtomInteraction
 from typing import Tuple
 
+# Local intensities below this are treated as dark. Worst case (resonant,
+# two-level) the discarded scattering rate is (Γ/2)·I/I_sat ≈ 0.7 s⁻¹,
+# i.e. ≪ 1 event over any realistic flight time.
+MIN_INTENSITY = 1e-6  # W/m²
+
 
 @njit(inline='always')
 def _advance_with_gravity(positions, velocities, atom_id, vel, dt):
@@ -116,7 +121,7 @@ def absorption_and_emission_default_timestep(atom_ids: np.ndarray,
                                                       lasers.refractive_indices[j])
                 intensity_at_position[j] = intensity
 
-                if intensity > 0.0:
+                if intensity > MIN_INTENSITY:
                     doppler_shifts[j] = (wave_vectors[j, 0] * vel[0]
                                          + wave_vectors[j, 1] * vel[1]
                                          + wave_vectors[j, 2] * vel[2])

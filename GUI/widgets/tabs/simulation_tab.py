@@ -84,6 +84,16 @@ class SimulationSettingsTab(SettingsTab):
         self.macroparticleSpin.setMaximumWidth(500)
         rate_layout.addRow("Macroparticle Factor:", self.macroparticleSpin)
 
+        # Injection cutoff: stop injecting atoms at this time (0 = whole sim)
+        self.injectionCutoffSpin = QDoubleSpinBox()
+        self.injectionCutoffSpin.setRange(0.0, 1e6)
+        self.injectionCutoffSpin.setDecimals(1)
+        self.injectionCutoffSpin.setLocale(QLocale(QLocale.C))
+        self.injectionCutoffSpin.setMaximumWidth(500)
+        self.injectionCutoffSpin.setSuffix(" ms")
+        self.injectionCutoffSpin.setSpecialValueText("= Simulated Time")
+        rate_layout.addRow("Injection Cutoff:", self.injectionCutoffSpin)
+
         # Estimated number of simulated atoms (read-only)
         self.estimatedAtomsEdit = QLineEdit()
         self.estimatedAtomsEdit.setReadOnly(True)
@@ -127,7 +137,10 @@ class SimulationSettingsTab(SettingsTab):
 
         # Connect Signals for the Macroparticle SpinBox
         self.macroparticleSpin.valueChanged.connect(lambda v: self._update_model("macro_particle_weight", v))
-        self.macroparticleSpin.valueChanged.connect(self._estimate_atom_count)   
+        self.macroparticleSpin.valueChanged.connect(self._estimate_atom_count)
+
+        # Connect Signal for the Injection Cutoff SpinBox
+        self.injectionCutoffSpin.valueChanged.connect(lambda v: self._update_model("injection_cutoff_time", v))
 
 
     def setModel(self, model):
@@ -141,6 +154,7 @@ class SimulationSettingsTab(SettingsTab):
             self.rateRadioBtn,
             self.fluxSpin,
             self.macroparticleSpin,
+            self.injectionCutoffSpin,
         )
         try:
             with signals_blocked(*widgets):
@@ -151,6 +165,7 @@ class SimulationSettingsTab(SettingsTab):
                 self.rateRadioBtn.setChecked(model.safe_get('Simulation', 'rate_mode', default=False))
                 self.fluxSpin.setValue(model.safe_get('Simulation', 'flux', default=3))
                 self.macroparticleSpin.setValue(model.safe_get('Simulation', 'macro_particle_weight', default=5000))
+                self.injectionCutoffSpin.setValue(model.safe_get('Simulation', 'injection_cutoff_time', default=0))
 
                 interaction = model.safe_get('Simulation', 'interaction', default='Lithium18LevelInteraction')
                 if interaction:
@@ -172,6 +187,7 @@ class SimulationSettingsTab(SettingsTab):
         # Enable/disable just the Flux and Macroparticle spin boxes
         self.fluxSpin.setEnabled(checked)
         self.macroparticleSpin.setEnabled(checked)
+        self.injectionCutoffSpin.setEnabled(checked)
 
 
 
