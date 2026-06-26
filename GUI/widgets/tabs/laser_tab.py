@@ -32,7 +32,7 @@ class LasersSettingsTab(QWidget):
     TYPE_OPTIONS = ["unspecified", "repump", "trap"]
     HELICITY_OPTIONS = ["-1", "0", "+1"]
 
-    def __init__(self, model=None, parent=None):
+    def __init__(self, model=None, parent=None) -> None:
         super().__init__(parent)
         self._model = None
         self.currentRow = None
@@ -41,7 +41,7 @@ class LasersSettingsTab(QWidget):
             self.setModel(model)
         self.popup = None
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         self.setWindowTitle("Laser Properties Editor")
         layout = QHBoxLayout(self)
 
@@ -152,7 +152,7 @@ class LasersSettingsTab(QWidget):
         )
         self.table.itemChanged.connect(self._on_item_changed)
 
-    def setModel(self, model):
+    def setModel(self, model) -> None:
         self._model = model
         with signals_blocked(self.table):
             self.table.clearContents()
@@ -164,7 +164,7 @@ class LasersSettingsTab(QWidget):
                 [f"L{n}" for n in range(len(laserList))]
             )
 
-    def _populate_row(self, row, cfg):
+    def _populate_row(self, row, cfg) -> None:
         # Type
         combo = QComboBox()
         combo.addItems(self.TYPE_OPTIONS)
@@ -206,7 +206,7 @@ class LasersSettingsTab(QWidget):
         )
         self.table.setCellWidget(row, 7, heli)
 
-    def _on_item_changed(self, item):
+    def _on_item_changed(self, item) -> None:
         if not self._model:
             return
         row, col = item.row(), item.column()
@@ -228,7 +228,7 @@ class LasersSettingsTab(QWidget):
                 lst[row][info["key"]] = val
                 self._model.set(lst, "Lasers")
 
-    def _remove_selected(self):
+    def _remove_selected(self) -> None:
         """Remove the currently highlighted dipole row."""
         if not self._model:
             return
@@ -244,7 +244,7 @@ class LasersSettingsTab(QWidget):
             self._model.set(lst, "Lasers")
             self.setModel(self._model)
 
-    def _update_model(self, rowIndex, keyName, value):
+    def _update_model(self, rowIndex, keyName, value) -> None:
         """Update a specific property on one laser and mark dirty"""
         if not self._model:
             return
@@ -255,18 +255,18 @@ class LasersSettingsTab(QWidget):
             newList[rowIndex][keyName] = value
             self._model.set(newList, "Lasers")
 
-    def _edit_all_selected(self):
+    def _edit_all_selected(self) -> None:
         self.popup = EditAllPopup(self)
         self.popup.show()
         pass
 
     # Placeholder slots
-    def _edit_defaults(self):
+    def _edit_defaults(self) -> None:
         self.popup = EditDefaultsPopup(self)
         self.popup.show()
         pass
 
-    def _add_new_laser(self, kind):
+    def _add_new_laser(self, kind) -> None:
         """
         Add a new laser using defaults. Prefer JSON defaults files if present,
         otherwise fall back to model-provided defaults (Lasers_defaults).

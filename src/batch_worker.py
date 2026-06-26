@@ -40,8 +40,8 @@ class BatchSimulationWorker(QThread):
         parent=None,
         buffer_size: int = 10000,
         checkpoint_interval: float = 30.0,
-        resume_checkpoint_dir: str = None,
-    ):
+        resume_checkpoint_dir: str | None = None,
+    ) -> None:
         super().__init__(parent)
         self.directory = directory
         self.file_names = file_names
@@ -68,7 +68,7 @@ class BatchSimulationWorker(QThread):
         self.run_buffer_size = buffer_size  # flush threshold
 
     # filesystem helper funcs
-    def ensure_batch_root_and_folder(self):
+    def ensure_batch_root_and_folder(self) -> None:
         """Ensure simulation_results exists and create a dated batch folder.
 
         The folder is named DD_MM_YY_NUM (NUM auto-increments).
@@ -98,7 +98,7 @@ class BatchSimulationWorker(QThread):
         self.batch_folder = batch_folder_path
         self.statusChanged.emit(f"Created batch folder: {self.batch_folder}")
 
-    def make_run_folder(self, idx: int):
+    def make_run_folder(self, idx: int) -> str:
         """Create run_{idx} inside the batch folder and open its result.csv."""
         if self.batch_folder is None:
             raise RuntimeError("batch folder not created")
@@ -116,7 +116,7 @@ class BatchSimulationWorker(QThread):
         self.statusChanged.emit(f"Run folder ready: {run_folder}")
         return run_folder
 
-    def flush_run_buffer(self, idx: int):
+    def flush_run_buffer(self, idx: int) -> None:
         """Flush the buffer for run idx to disk."""
         fh = self.run_fhs.get(idx)
         buf = self.run_buffers.get(idx)
@@ -136,7 +136,7 @@ class BatchSimulationWorker(QThread):
             # clear buffer even if write partially failed to avoid duplicates
             self.run_buffers[idx] = []
 
-    def close_run(self, idx: int):
+    def close_run(self, idx: int) -> None:
         """Flush and close the open result.csv handle for run ``idx``."""
         # Flush before closing
         try:
@@ -159,7 +159,7 @@ class BatchSimulationWorker(QThread):
         if idx in self.run_buffers:
             del self.run_buffers[idx]
 
-    def _make_header_from_opts(self, opts: dict):
+    def _make_header_from_opts(self, opts: dict) -> str:
         cols = ["step", "atom_id"]
         if opts.get("write_position", True):
             cols += ["position_x", "position_y", "position_z"]
@@ -178,15 +178,15 @@ class BatchSimulationWorker(QThread):
         run_idx: int,
         step: int,
         current_atom_states: ECSAtoms = None,
-        alive_ids=None,
-        excitation_counter=None,
+        alive_ids: np.ndarray | None = None,
+        excitation_counter: np.ndarray | None = None,
         write_position: bool = True,
         write_velocity: bool = True,
         write_subjective_time: bool = True,
         write_excitation_count: bool = False,
         write_ground_state: bool = False,
         force_write_all: bool = False,
-    ):
+    ) -> None:
         """Write the alive atoms' state for one step to the run buffer.
 
         Uses boolean/integer indexing into the per-atom arrays on
@@ -307,7 +307,7 @@ class BatchSimulationWorker(QThread):
             self.flush_run_buffer(run_idx)
 
     # main run loop
-    def run(self):
+    def run(self) -> None:
         """Process every queued parameter file (the QThread entry point)."""
         total_files = len(self.file_names)
 
@@ -643,20 +643,20 @@ class BatchSimulationWorker(QThread):
         # Batch finished
         self.finished.emit()
 
-    def pause(self):
+    def pause(self) -> None:
         """Pause the run loop after the current step."""
         self._pause = True
 
-    def resume(self):
+    def resume(self) -> None:
         """Resume a paused run loop."""
         self._pause = False
 
-    def stop_current(self):
+    def stop_current(self) -> None:
         """Cancel the running simulation, then continue with remaining files."""
         self._stop_current = True
         self._pause = False  # unblock if currently paused
 
-    def stop(self):
+    def stop(self) -> None:
         """Cancel all remaining simulations."""
         self._stop = True
         self._stop_current = True  # also unblock the inner loop immediately

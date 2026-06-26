@@ -25,7 +25,7 @@ class ValidationDiffDialog(QDialog):
     Saving writes back through the model (marks it clean).
     """
 
-    def __init__(self, model, schema: dict, parent=None):
+    def __init__(self, model, schema: dict, parent=None) -> None:
         super().__init__(parent)
         self.model = model
         self.schema = schema
@@ -37,7 +37,7 @@ class ValidationDiffDialog(QDialog):
 
     # UI setup
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
 
         self.summaryLabel = QLabel("")
@@ -91,14 +91,14 @@ class ValidationDiffDialog(QDialog):
 
     # Loading / validation
 
-    def _load_from_model(self):
+    def _load_from_model(self) -> None:
         text = json.dumps(self.model.data(), indent=2)
         self.jsonEditor.blockSignals(True)
         self.jsonEditor.setPlainText(text)
         self.jsonEditor.blockSignals(False)
         self._revalidate()
 
-    def _revalidate(self):
+    def _revalidate(self) -> None:
         self.errorTree.clear()
         text = self.jsonEditor.toPlainText()
 
@@ -187,7 +187,7 @@ class ValidationDiffDialog(QDialog):
 
     # Interaction
 
-    def _on_error_clicked(self, item, _column):
+    def _on_error_clicked(self, item, _column) -> None:
         err = item.data(0, Qt.UserRole)
         if err is None:
             return
@@ -210,7 +210,7 @@ class ValidationDiffDialog(QDialog):
             self.jsonEditor.setFocus()
             self.jsonEditor.ensureCursorVisible()
 
-    def _format_json(self):
+    def _format_json(self) -> None:
         text = self.jsonEditor.toPlainText()
         try:
             data = json.loads(text)
@@ -228,7 +228,7 @@ class ValidationDiffDialog(QDialog):
 
     # Save
 
-    def _save(self):
+    def _save(self) -> None:
         text = self.jsonEditor.toPlainText()
         try:
             data = json.loads(text)

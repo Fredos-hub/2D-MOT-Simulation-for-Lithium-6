@@ -33,7 +33,7 @@ class EditDefaultsPopup(QWidget):
         ("waist", "Waist (m)"),
     ]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(flags=Qt.Window)
         self.parent = parent
         self.setWindowTitle("Edit Laser Defaults")
@@ -98,7 +98,7 @@ class EditDefaultsPopup(QWidget):
         self._on_selector_changed(self.selector.currentText())
         self.show()
 
-    def _on_selector_changed(self, txt):
+    def _on_selector_changed(self, txt) -> None:
         """Load JSON for the selected defaults and populate fields."""
         filename = self.FILE_MAP.get(txt)
         if not filename:
@@ -136,7 +136,7 @@ class EditDefaultsPopup(QWidget):
             chk.setChecked(False)
             edit.setEnabled(False)
 
-    def _save(self):
+    def _save(self) -> None:
         """Write changed fields back to the JSON file. Unchecked fields are left as-is."""
         if not self.current_name:
             QMessageBox.warning(self, "No selection", "No defaults selected.")

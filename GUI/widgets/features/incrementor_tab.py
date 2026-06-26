@@ -27,11 +27,11 @@ _SCOPE_LABEL = {0: "All", 1: "Trap", 2: "Repump"}
 
 
 class IncrementorTab(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._init_ui()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         main_layout = QHBoxLayout(self)
 
         # Left column: settings + queue + generate
@@ -186,7 +186,7 @@ class IncrementorTab(QWidget):
         self.radio_group.buttonClicked[int].connect(self._update_enabled)
         self._update_enabled(0)
 
-    def _show_help(self):
+    def _show_help(self) -> None:
         QMessageBox.information(
             self,
             "Incrementor Help",
@@ -204,7 +204,7 @@ class IncrementorTab(QWidget):
             "Generate refuses an empty queue.",
         )
 
-    def _add_files(self):
+    def _add_files(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
             self, "Select JSON Files", "", "JSON Files (*.json)"
         )
@@ -215,11 +215,11 @@ class IncrementorTab(QWidget):
             ):
                 self.file_list.addItem(p)
 
-    def _remove_selected(self):
+    def _remove_selected(self) -> None:
         for item in self.file_list.selectedItems():
             self.file_list.takeItem(self.file_list.row(item))
 
-    def _update_enabled(self, idx):
+    def _update_enabled(self, idx) -> None:
         sel = self.radio_group.checkedId()
         groups = [
             self.vec_group,
@@ -235,27 +235,27 @@ class IncrementorTab(QWidget):
 
     # Sweep queue
 
-    def _queued_sweeps(self):
+    def _queued_sweeps(self) -> list:
         return [
             self.queue_list.item(i).data(Qt.UserRole)
             for i in range(self.queue_list.count())
         ]
 
     @staticmethod
-    def _range_values(f, t, s):
+    def _range_values(f, t, s) -> list[float]:
         if s <= 0 or t < f:
             return []
         n = int((t - f) / s) + 1
         return [f + k * s for k in range(n)]
 
-    def _on_add_sweep(self):
+    def _on_add_sweep(self) -> None:
         idx = self.radio_group.checkedId()
         if idx == 0:
             self._add_velocity_sweeps()
         else:
             self._add_laser_sweep(idx)
 
-    def _add_velocity_sweeps(self):
+    def _add_velocity_sweeps(self) -> None:
         froms = [float(e.text()) for e in self.from_vec.edits]
         tos = [float(e.text()) for e in self.to_vec.edits]
         steps = [float(e.text()) for e in self.step_vec.edits]
@@ -299,7 +299,7 @@ class IncrementorTab(QWidget):
         for c in candidates:
             self._enqueue(c)
 
-    def _add_laser_sweep(self, idx):
+    def _add_laser_sweep(self, idx) -> None:
         widget_map = {
             1: (
                 self.from_waist,
@@ -349,20 +349,20 @@ class IncrementorTab(QWidget):
             return
         self._enqueue(sweep)
 
-    def _enqueue(self, sweep):
+    def _enqueue(self, sweep) -> None:
         item = QListWidgetItem(self._format_label(sweep))
         item.setData(Qt.UserRole, sweep)
         self.queue_list.addItem(item)
 
-    def _on_remove_sweep(self):
+    def _on_remove_sweep(self) -> None:
         for item in self.queue_list.selectedItems():
             self.queue_list.takeItem(self.queue_list.row(item))
 
-    def _on_clear_sweeps(self):
+    def _on_clear_sweeps(self) -> None:
         self.queue_list.clear()
 
     @staticmethod
-    def _conflicts(existing, new):
+    def _conflicts(existing, new) -> bool:
         for e in existing:
             if e["kind"] != new["kind"]:
                 continue
@@ -375,7 +375,7 @@ class IncrementorTab(QWidget):
         return False
 
     @staticmethod
-    def _format_label(sweep):
+    def _format_label(sweep) -> str:
         k = sweep["kind"]
         n = len(sweep["values"])
         rng = f"{sweep['from']} → {sweep['to']} step {sweep['step']}"
@@ -386,7 +386,7 @@ class IncrementorTab(QWidget):
         return f"{k.capitalize()} · {scope} · {rng} {unit}  ({n} vals)"
 
     @staticmethod
-    def _apply_sweep(cfg, sweep, value):
+    def _apply_sweep(cfg, sweep, value) -> None:
         k = sweep["kind"]
         if k in ("vx", "vy", "vz"):
             axis = {"vx": 0, "vy": 1, "vz": 2}[k]
@@ -412,7 +412,7 @@ class IncrementorTab(QWidget):
             las[key] = value / div
 
     @staticmethod
-    def _tag_for(sweep, value):
+    def _tag_for(sweep, value) -> str:
         k = sweep["kind"]
         if k == "vx":
             return f"vx{value:.1f}"
@@ -437,7 +437,7 @@ class IncrementorTab(QWidget):
 
     # Generate
 
-    def _on_generate(self):
+    def _on_generate(self) -> None:
         files = [
             self.file_list.item(i).text()
             for i in range(self.file_list.count())

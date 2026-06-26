@@ -52,7 +52,7 @@ class SampleGeneratorTab(QWidget):
         "current_groundstate",
     }
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
         # File-based state
@@ -64,7 +64,7 @@ class SampleGeneratorTab(QWidget):
         # Plot widgets are created in _init_ui()
         self._init_ui()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         # Main layout
         main_layout = QVBoxLayout(self)
 
@@ -173,7 +173,7 @@ class SampleGeneratorTab(QWidget):
 
         return widget
 
-    def _build_oven_ui(self):
+    def _build_oven_ui(self) -> None:
         group = QGroupBox("Oven Sample Settings")
         layout = QFormLayout()
         self.aperture_data = []
@@ -300,7 +300,7 @@ class SampleGeneratorTab(QWidget):
         group.setLayout(layout)
         return group
 
-    def _build_file_ui(self):
+    def _build_file_ui(self) -> None:
         group = QGroupBox("File-based Sample Settings")
         layout = QFormLayout()
 
@@ -345,7 +345,7 @@ class SampleGeneratorTab(QWidget):
         group.setLayout(layout)
         return group
 
-    def _connect_oven_preview_signals(self):
+    def _connect_oven_preview_signals(self) -> None:
         for spin in (
             self.atom_mass_spin,
             self.temp_spin,
@@ -360,7 +360,7 @@ class SampleGeneratorTab(QWidget):
             lambda *_: self._refresh_oven_preview()
         )
 
-    def _refresh_oven_preview(self):
+    def _refresh_oven_preview(self) -> None:
         if not self.oven_radio.isChecked():
             return
 
@@ -385,7 +385,7 @@ class SampleGeneratorTab(QWidget):
             * np.exp(-(mass_kg * speed**2) / (2.0 * scc.k * temperature_k))
         )
 
-    def _update_oven_distribution_plot(self):
+    def _update_oven_distribution_plot(self) -> None:
         ax = getattr(self, "distribution_ax", None)
         canvas = getattr(self, "distribution_canvas", None)
         if ax is None or canvas is None:
@@ -434,7 +434,7 @@ class SampleGeneratorTab(QWidget):
         ax.legend(loc="best")
         canvas.draw_idle()
 
-    def _get_oven_components(self):
+    def _get_oven_components(self) -> list[dict]:
         components = [
             {
                 "kind": "oven",
@@ -456,7 +456,7 @@ class SampleGeneratorTab(QWidget):
 
         return sorted(components, key=lambda item: item["y"])
 
-    def _update_oven_draft_plot(self):
+    def _update_oven_draft_plot(self) -> None:
         ax = getattr(self, "oven_draft_ax", None)
         canvas = getattr(self, "oven_draft_canvas", None)
         if ax is None or canvas is None:
@@ -561,13 +561,13 @@ class SampleGeneratorTab(QWidget):
         ax.grid(True, alpha=0.25)
         canvas.draw_idle()
 
-    def _hbox(self, *widgets):
+    def _hbox(self, *widgets) -> QHBoxLayout:
         h = QHBoxLayout()
         for w in widgets:
             h.addWidget(w)
         return h
 
-    def _on_mode_changed(self, checked):
+    def _on_mode_changed(self, checked) -> None:
         idx = 0 if self.oven_radio.isChecked() else 1
         self.stacked.setCurrentIndex(idx)
 
@@ -581,7 +581,7 @@ class SampleGeneratorTab(QWidget):
             else:
                 self._clear_file_plots()
 
-    def _refresh_file_ui_state(self):
+    def _refresh_file_ui_state(self) -> None:
         has_file = self.file_df is not None and not self.step_summary.empty
         self.step_spin.setEnabled(has_file)
         self.generate_file_btn.setEnabled(has_file)
@@ -602,14 +602,14 @@ class SampleGeneratorTab(QWidget):
             )
             self._clear_file_plots()
 
-    def _add_aperture(self):
+    def _add_aperture(self) -> None:
         r = self.ap_radius_spin.value()
         y = self.ap_ypos_spin.value()
         self.aperture_data.append((r, y))
         self.aperture_list.addItem(f"Aperture: r={r:.1f} mm, y={y:.1f} mm")
         self._refresh_oven_preview()
 
-    def _remove_aperture(self):
+    def _remove_aperture(self) -> None:
         # Delete from the end so row indices stay valid.
         for item in self.aperture_list.selectedItems():
             row = self.aperture_list.row(item)
@@ -618,7 +618,7 @@ class SampleGeneratorTab(QWidget):
             self.aperture_list.takeItem(row)
         self._refresh_oven_preview()
 
-    def _browse_output(self, target_line_edit: QLineEdit):
+    def _browse_output(self, target_line_edit: QLineEdit) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self, "Save Output", filter="CSV files (*.csv)"
         )
@@ -626,7 +626,7 @@ class SampleGeneratorTab(QWidget):
             rel = QDir().relativeFilePath(path)
             target_line_edit.setText(rel)
 
-    def _browse_input(self):
+    def _browse_input(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Sample File", filter="CSV files (*.csv)"
         )
@@ -635,7 +635,7 @@ class SampleGeneratorTab(QWidget):
             self.input_line.setText(rel)
             self._load_file_data(rel)
 
-    def _load_file_data(self, input_file: str):
+    def _load_file_data(self, input_file: str) -> None:
         try:
             df = pd.read_csv(input_file)
         except Exception as exc:
@@ -700,7 +700,7 @@ class SampleGeneratorTab(QWidget):
         )
         self._refresh_file_ui_state()
 
-    def _on_step_changed(self, step: int):
+    def _on_step_changed(self, step: int) -> None:
         if self.step_times_s.size == 0:
             self.step_time_label.setText("0.000 ms")
             self.step_info_label.setText(
@@ -710,7 +710,7 @@ class SampleGeneratorTab(QWidget):
 
         self._update_step_preview(step)
 
-    def _update_step_preview(self, step: int):
+    def _update_step_preview(self, step: int) -> None:
         if self.step_times_s.size == 0:
             return
 
@@ -725,7 +725,7 @@ class SampleGeneratorTab(QWidget):
 
         self._update_file_plots(step)
 
-    def _clear_file_plots(self):
+    def _clear_file_plots(self) -> None:
         for ax in (
             getattr(self, "position_ax", None),
             getattr(self, "velocity_ax", None),
@@ -740,7 +740,7 @@ class SampleGeneratorTab(QWidget):
             if canvas is not None:
                 canvas.draw_idle()
 
-    def _update_file_plots(self, selected_step: int):
+    def _update_file_plots(self, selected_step: int) -> None:
         if self.step_summary.empty:
             self._clear_file_plots()
             return
@@ -791,7 +791,7 @@ class SampleGeneratorTab(QWidget):
         title: str,
         y_label: str,
         selected_time_ms: float,
-    ):
+    ) -> None:
         ax.clear()
 
         for label, y in series:
@@ -812,7 +812,7 @@ class SampleGeneratorTab(QWidget):
         ax.grid(True, alpha=0.25)
         canvas.draw_idle()
 
-    def _generate_from_oven(self):
+    def _generate_from_oven(self) -> None:
         # 1) read all the UI state into a plain dict
         params = {
             "atom_mass": self.atom_mass_spin.value(),
@@ -842,11 +842,11 @@ class SampleGeneratorTab(QWidget):
 
         self.statusLabel.setText("Status: Running…")
 
-    def _set_oven_running(self, running: bool):
+    def _set_oven_running(self, running: bool) -> None:
         self.generate_oven_btn.setEnabled(not running)
         self.cancel_oven_btn.setEnabled(running)
 
-    def _cancel_oven(self):
+    def _cancel_oven(self) -> None:
         if self.is_busy():
             self.worker.cancel()
             self.statusLabel.setText("Status: Cancelling…")
@@ -854,28 +854,28 @@ class SampleGeneratorTab(QWidget):
     def is_busy(self) -> bool:
         return self.worker is not None and self.worker.isRunning()
 
-    def cancel_and_wait(self):
+    def cancel_and_wait(self) -> None:
         """Request cancellation and block until the worker thread has finished."""
         if self.is_busy():
             self.worker.cancel()
             self.worker.wait()
 
-    def _on_oven_finished(self, filename):
+    def _on_oven_finished(self, filename) -> None:
         self._set_oven_running(False)
         self.statusLabel.setText(f"Status: Done → {filename}")
         self.sampleCreated.emit(filename)
 
-    def _on_oven_error(self, message):
+    def _on_oven_error(self, message) -> None:
         self._set_oven_running(False)
         self.dist_progress_bar.setValue(0)
         self.statusLabel.setText(f"Status: Error — {message}")
 
-    def _on_oven_cancelled(self):
+    def _on_oven_cancelled(self) -> None:
         self._set_oven_running(False)
         self.dist_progress_bar.setValue(0)
         self.statusLabel.setText("Status: Cancelled.")
 
-    def _generate_from_file(self):
+    def _generate_from_file(self) -> None:
         input_file = self.input_line.text().strip()
         output_file = self.output_line_2.text().strip()
 
@@ -963,7 +963,7 @@ class SampleGeneratorTab(QWidget):
 
 def filter_step_snapshot(
     data_frame: pd.DataFrame, step_times_s: np.ndarray, step: int
-):
+) -> pd.DataFrame:
     """
     Helper for step-based selection.
 

@@ -7,7 +7,7 @@ from GUI.widgets.tabs.settings_tab_base import SettingsTab, signals_blocked
 class BoundariesSettingsTab(SettingsTab):
     SECTION = "Boundaries"
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         layout = QFormLayout(self)
         self.XLimitSpin = self._make_spin()
         layout.addRow("X Limit (mm):", self.XLimitSpin)
@@ -16,14 +16,14 @@ class BoundariesSettingsTab(SettingsTab):
         self.ZLimitSpin = self._make_spin()
         layout.addRow("Z Limit (mm):", self.ZLimitSpin)
 
-    def _make_spin(self):
+    def _make_spin(self) -> QDoubleSpinBox:
         spin = QDoubleSpinBox()
         spin.setLocale(QLocale(QLocale.C))
         spin.setMaximumWidth(280)
         spin.setMaximum(5000)
         return spin
 
-    def _connect_signals(self):
+    def _connect_signals(self) -> None:
         self.XLimitSpin.valueChanged.connect(
             lambda v: self._update_model("x_limit", v)
         )
@@ -34,7 +34,7 @@ class BoundariesSettingsTab(SettingsTab):
             lambda v: self._update_model("z_limit", v)
         )
 
-    def setModel(self, model):
+    def setModel(self, model) -> None:
         self._model = model
         with signals_blocked(
             self.XLimitSpin, self.YLimitSpin, self.ZLimitSpin

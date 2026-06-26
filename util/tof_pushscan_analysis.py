@@ -101,7 +101,7 @@ def extract_crossings(run_dir: Path) -> pd.DataFrame:
     return rec
 
 
-def runs_from_manifest(mf, multi=False):
+def runs_from_manifest(mf: str | Path, multi: bool = False) -> list:
     out = []
     for _, r in pd.read_csv(mf).iterrows():
         folder = SIM / str(r["batch_folder"])
@@ -112,7 +112,7 @@ def runs_from_manifest(mf, multi=False):
     return out
 
 
-def build():
+def build() -> pd.DataFrame:
     runs = [
         ("power", d)
         for d in runs_from_manifest(REPO / "pb_powerscan_runs/manifest.csv")
@@ -150,15 +150,15 @@ def build():
     return allc
 
 
-def filt(df):
+def filt(df: pd.DataFrame) -> pd.DataFrame:
     return df[(df.rho_cross_mm <= RHO_MAX_MM) & (df.exc >= EXC_MIN)]
 
 
-def _gauss(x, A, mu, sig):
+def _gauss(x: np.ndarray, A: float, mu: float, sig: float) -> np.ndarray:
     return A * np.exp(-0.5 * ((x - mu) / sig) ** 2)
 
 
-def fit_peak_vz(vz, binw=2.0):
+def fit_peak_vz(vz: np.ndarray, binw: float = 2.0) -> tuple:
     """Gaussian fit to the fast peak: window = contiguous bins >=30% of the mode
     bin, tail rejected. Returns (A, mu, sigma); falls back to (nan, mode, nan).
     """
@@ -201,7 +201,7 @@ def fit_peak_vz(vz, binw=2.0):
         return np.nan, mode, np.nan
 
 
-def plot_tof(allc):
+def plot_tof(allc: pd.DataFrame) -> None:
     d = filt(allc[allc.dataset == "tof"])
     tons = [5.0, 2.0, 0.0]
     col = {5.0: "C0", 2.0: "C1", 0.0: "C2"}
@@ -256,7 +256,7 @@ def plot_tof(allc):
             plt.close(fig)
 
 
-def _series(dd, xcol):
+def _series(dd: pd.DataFrame, xcol: str) -> tuple:
     xs = sorted(dd[xcol].unique())
     mu = []
     sig = []
@@ -270,7 +270,7 @@ def _series(dd, xcol):
     return xs, mu, sig, cnt
 
 
-def plot_power(allc):
+def plot_power(allc: pd.DataFrame) -> None:
     d = filt(allc[allc.dataset == "power"])
     x, vz, sig, cnt = _series(d, "power_mW")
     fig, a1 = plt.subplots(figsize=(7, 4.5))
@@ -293,7 +293,7 @@ def plot_power(allc):
     plt.close(fig)
 
 
-def plot_duration(allc):
+def plot_duration(allc: pd.DataFrame) -> None:
     d = filt(allc[allc.dataset == "tof"])
     tons = [5.0, 2.0, 0.0]
     mk = {5.0: "o", 2.0: "s", 0.0: "^"}
@@ -332,7 +332,7 @@ def plot_duration(allc):
     plt.close(fig)
 
 
-def plot_detuning(allc):
+def plot_detuning(allc: pd.DataFrame) -> None:
     d = filt(allc[allc.dataset == "detuning"])
     for pol in ("LH", "LIN"):
         for t in (5.0, 2.0):

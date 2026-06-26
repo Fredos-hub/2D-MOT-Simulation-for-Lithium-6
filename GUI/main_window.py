@@ -20,7 +20,7 @@ class MainWindow(QMainWindow):
     MIN_POINT_SIZE = 9.0  # smallest readable point size
     MAX_POINT_SIZE = 28.0  # optional cap to avoid enormous UI
 
-    def __init__(self, app):
+    def __init__(self, app) -> None:
         super().__init__()
         self.app = app
 
@@ -174,11 +174,11 @@ class MainWindow(QMainWindow):
             # Connect once the window handle exists (in case __init__ runs before show)
             self.windowHandleChanged.connect(self._onWindowHandleAvailable)
 
-    def _onWindowHandleAvailable(self):
+    def _onWindowHandleAvailable(self) -> None:
         if self.windowHandle() is not None:
             self.windowHandle().screenChanged.connect(self._on_screen_changed)
 
-    def apply_scale_for_screen(self, screen):
+    def apply_scale_for_screen(self, screen) -> None:
         """Compute scale from screen DPI and apply to app font and geometry."""
         if screen is None:
             return
@@ -210,7 +210,7 @@ class MainWindow(QMainWindow):
         self.adjustSize()
         self.updateGeometry()
 
-    def _on_simulation_state_changed(self, state: str):
+    def _on_simulation_state_changed(self, state: str) -> None:
         """Update run/pause/resume/cancel enabled-states on both the toolbar and menu."""
         running = state == "running"
         paused = state == "paused"
@@ -226,11 +226,11 @@ class MainWindow(QMainWindow):
             bar.resume_action.setEnabled(paused)
             bar.cancel_action.setEnabled(running or paused)
 
-    def _on_screen_changed(self, screen):
+    def _on_screen_changed(self, screen) -> None:
         """Slot called when the window moves to another screen."""
         self.apply_scale_for_screen(screen)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event) -> None:
         """Confirm before quitting if work is running or unsaved, then stop threads cleanly."""
         cockpit = self.simulationCockpitTab
         generator = self.SampleGeneratorTab

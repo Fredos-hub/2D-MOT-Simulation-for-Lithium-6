@@ -1,10 +1,11 @@
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 from PyQt5.QtWidgets import QWidget
 
 
 @contextmanager
-def signals_blocked(*objects):
+def signals_blocked(*objects) -> Iterator[None]:
     """Block Qt signals on each object for the duration of the block, then restore."""
     for obj in objects:
         obj.blockSignals(True)
@@ -26,18 +27,18 @@ class SettingsTab(QWidget):
 
     SECTION = None
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._model = None
         self._init_ui()
         self._connect_signals()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         raise NotImplementedError
 
-    def _connect_signals(self):
+    def _connect_signals(self) -> None:
         raise NotImplementedError
 
-    def _update_model(self, key, value):
+    def _update_model(self, key, value) -> None:
         if self._model is not None:
             self._model.set(value, self.SECTION, key)

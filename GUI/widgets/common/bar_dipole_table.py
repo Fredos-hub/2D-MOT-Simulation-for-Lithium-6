@@ -21,14 +21,14 @@ class BarDipolesTable(QWidget):
     Table to configure bar‑dipoles in Magnetic_Fields → dipoles.
     """
 
-    def __init__(self, model=None, parent=None):
+    def __init__(self, model=None, parent=None) -> None:
         super().__init__(parent)
         self._model = None
         self._init_ui()
         if model is not None:
             self.setModel(model)
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         layout = QHBoxLayout(self)
 
         # Left: add/remove & plot buttons, with separator
@@ -83,7 +83,7 @@ class BarDipolesTable(QWidget):
         layout.addWidget(panel)
         layout.addWidget(self.table)
 
-    def setModel(self, model):
+    def setModel(self, model) -> None:
         """Load dipoles list from model."""
         self._model = model
         dip_list = model.get("Magnetic_Fields", "dipoles", default=[]) or []
@@ -95,7 +95,7 @@ class BarDipolesTable(QWidget):
                 [f"D{n}" for n in range(len(dip_list))]
             )
 
-    def _populate_row(self, row, cfg):
+    def _populate_row(self, row, cfg) -> None:
         # Position widget
         pos_w = VectorInputWidget(cfg.get("position", [0, 0, 0]), self)
         pos_w.vectorChanged.connect(
@@ -135,7 +135,7 @@ class BarDipolesTable(QWidget):
         )
         self.table.setCellWidget(row, 3, mag_spin)
 
-    def _add_new_dipole(self):
+    def _add_new_dipole(self) -> None:
         if not self._model:
             return
         lst = list(
@@ -152,7 +152,7 @@ class BarDipolesTable(QWidget):
         self._model.set(lst, "Magnetic_Fields", "dipoles")
         self.setModel(self._model)
 
-    def _remove_selected(self):
+    def _remove_selected(self) -> None:
         """Remove the currently highlighted dipole row."""
         if not self._model:
             return
@@ -170,7 +170,7 @@ class BarDipolesTable(QWidget):
             self._model.set(lst, "Magnetic_Fields", "dipoles")
             self.setModel(self._model)
 
-    def _update_field(self, row, key, value):
+    def _update_field(self, row, key, value) -> None:
         """Update one field in the dipole list and write back."""
         if not self._model:
             return
@@ -184,12 +184,12 @@ class BarDipolesTable(QWidget):
         lst[row] = entry
         self._model.set(lst, "Magnetic_Fields", "dipoles")
 
-    def _plot_along_axis(self):
+    def _plot_along_axis(self) -> None:
         QMessageBox.information(
             self, "Plot Along Axis", "Plotting along axis…"
         )
 
-    def _plot_field_in_plane(self):
+    def _plot_field_in_plane(self) -> None:
         QMessageBox.information(
             self, "Plot Field in Plane", "Plotting field in plane…"
         )

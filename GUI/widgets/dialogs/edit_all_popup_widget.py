@@ -18,7 +18,7 @@ class EditAllPopup(QWidget):
     and writing them back into both the table AND the model.
     """
 
-    def __init__(self, parent_tab):
+    def __init__(self, parent_tab) -> None:
         """
         parent_tab: instance of LasersSettingsTab
         """
@@ -82,7 +82,7 @@ class EditAllPopup(QWidget):
         self.resize(450, 250)
         self.show()
 
-    def apply_changes(self):
+    def apply_changes(self) -> None:
         # figure out which columns we're updating
         updates = {}
         for col, (chk, edit) in self.fields.items():

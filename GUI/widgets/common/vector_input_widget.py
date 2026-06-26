@@ -7,7 +7,7 @@ class VectorInputWidget(QWidget):
     # Emit the new vector as a list of floats whenever it changes
     vectorChanged = pyqtSignal(list)
 
-    def __init__(self, initial_value=None, parent=None):
+    def __init__(self, initial_value=None, parent=None) -> None:
         super().__init__(parent)
         if initial_value is None:
             initial_value = [0.0, 0.0, 0.0]
@@ -26,7 +26,7 @@ class VectorInputWidget(QWidget):
             self.layout.addWidget(edit)
             self.edits.append(edit)
 
-    def _on_any_text_changed(self, _):
+    def _on_any_text_changed(self, _) -> None:
         """
         Slot connected to each QLineEdit.textChanged. Attempts to
         read all three edits, convert them to floats, and emit the
@@ -39,7 +39,7 @@ class VectorInputWidget(QWidget):
             return
         self.vectorChanged.emit(vec)
 
-    def setVector(self, vec):
+    def setVector(self, vec) -> None:
         """
         Programmatically update the three QLineEdits without
         emitting vectorChanged.

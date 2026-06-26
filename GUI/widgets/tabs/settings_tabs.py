@@ -16,7 +16,7 @@ from GUI.widgets.tabs.simulation_tab import SimulationSettingsTab
 class ReadOnlyDelegate(QStyledItemDelegate):
     """A delegate that prevents editing of cells."""
 
-    def createEditor(self, parent, option, index):
+    def createEditor(self, parent, option, index) -> None:
         return None
 
 
@@ -26,11 +26,11 @@ class SettingsTabsWidget(QWidget):
     Tabs will stretch to fill available horizontal space.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._setup_ui()
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         # Create the QTabWidget
         self.tabs = QTabWidget()
         # add the real tab pages
@@ -61,7 +61,7 @@ class SettingsTabsWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.tabs)
 
-    def setModel(self, model):
+    def setModel(self, model) -> None:
         """Give the FileModel to each child tab."""
         # only tabs that implement setModel will accept it
         for tab in (

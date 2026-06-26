@@ -32,7 +32,7 @@ class AtomsSettingsTab(SettingsTab):
 
     SECTION = "Atoms"
 
-    def _make_species_instances(self):
+    def _make_species_instances(self) -> None:
         # load all ECSAtoms subclasses
         self.species_instances = {}
         for name, cls in inspect.getmembers(atoms, inspect.isclass):
@@ -42,7 +42,7 @@ class AtomsSettingsTab(SettingsTab):
             except Exception:
                 pass
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         self._make_species_instances()
         layout = QFormLayout(self)
         # Species
@@ -109,7 +109,7 @@ class AtomsSettingsTab(SettingsTab):
         layout.addRow("Sample file:", self.sample_line)
         layout.addRow("Browse Sample File...", self.browse_sample_btn)
 
-    def _connect_signals(self):
+    def _connect_signals(self) -> None:
         # Species selection
         self.speciesCombo.currentTextChanged.connect(self._on_species_changed)
         # Number of atoms
@@ -144,7 +144,7 @@ class AtomsSettingsTab(SettingsTab):
             self._on_sample_type_changed
         )
 
-    def setModel(self, model):
+    def setModel(self, model) -> None:
         self._model = model
         widgets = (
             self.speciesCombo,
@@ -229,7 +229,7 @@ class AtomsSettingsTab(SettingsTab):
                 f"Some atom settings failed to load.\n\n{e}",
             )
 
-    def _browse_sample(self):
+    def _browse_sample(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Load Sample", filter="CSV files (*.csv)"
         )
@@ -241,14 +241,14 @@ class AtomsSettingsTab(SettingsTab):
             # disable relevant fields
             self._update_sample_field_states(True)
 
-    def _on_sample_changed(self, path):
+    def _on_sample_changed(self, path) -> None:
         populated = bool(path)
         # update model
         self._update_model("sample_file", path)
         # reflect UI state
         self._update_sample_field_states(populated)
 
-    def _update_sample_field_states(self, populated):
+    def _update_sample_field_states(self, populated) -> None:
         self.startPosWidget.setDisabled(populated)
         # Disable velocity when sample is set
         self.startVelWidget.setDisabled(populated)
@@ -258,7 +258,7 @@ class AtomsSettingsTab(SettingsTab):
             populated or self.randomizeCheckbox.isChecked()
         )
 
-    def _on_species_changed(self, text):
+    def _on_species_changed(self, text) -> None:
         self._update_model("species", text)
         inst = self.species_instances[self.speciesCombo.currentText()]
         self.massDisplay.setText(str(inst.mass_u))
@@ -269,7 +269,7 @@ class AtomsSettingsTab(SettingsTab):
         self.naturalLinewidthDisplay.setText(f"{lw:.2f}")
         self.setModel(self._model)
 
-    def _on_sample_type_changed(self, index):
+    def _on_sample_type_changed(self, index) -> None:
         if index < 0:
             return
         value = self.sampleTypeCombo.itemData(index)

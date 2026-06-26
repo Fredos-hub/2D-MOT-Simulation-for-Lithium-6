@@ -2,6 +2,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 from jsonschema import Draft7Validator
 from PyQt5.QtCore import QRegularExpression, Qt, QTimer, pyqtSignal
@@ -46,7 +47,7 @@ class LogHighlighter(QSyntaxHighlighter):
       - lines containing 'Building' -> green + bold + pale background (stands out)
     """
 
-    def __init__(self, document):
+    def __init__(self, document) -> None:
         super().__init__(document)
 
         # error format (red + bold)
@@ -105,7 +106,7 @@ class LogHighlighter(QSyntaxHighlighter):
 
 
 class AlignDelegate(QStyledItemDelegate):
-    def initStyleOption(self, option, index):
+    def initStyleOption(self, option, index) -> None:
         super().initStyleOption(option, index)
         option.displayAlignment = Qt.AlignCenter
 
@@ -115,7 +116,7 @@ class SimulationCockpit(QWidget):
     anyDirtyChanged = pyqtSignal(bool)
     simulationStateChanged = pyqtSignal(str)  # "idle" | "running" | "paused"
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.opened_directory = None
         self.models = {}
@@ -125,7 +126,7 @@ class SimulationCockpit(QWidget):
         self._schema_cache = None  # parsed JSON schema, loaded once on demand
         self._init_ui()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
 
         # Middle: FileTable + Detail panel
@@ -196,7 +197,7 @@ class SimulationCockpit(QWidget):
 
         self.setWindowTitle("Simulation Cockpit")
 
-    def _on_file_selected(self, filename):
+    def _on_file_selected(self, filename) -> None:
         self.settingsLabel.setText(f"Settings for: {filename}")
         model = self.models.get(filename)
         if model:
@@ -210,7 +211,7 @@ class SimulationCockpit(QWidget):
     def has_unsaved_changes(self) -> bool:
         return any(model.is_dirty() for model in self.models.values())
 
-    def stop_simulation_and_wait(self):
+    def stop_simulation_and_wait(self) -> None:
         """Stop the batch worker and block until its thread has finished."""
         if self.is_simulation_running():
             self.batch_worker.stop()
@@ -239,7 +240,7 @@ class SimulationCockpit(QWidget):
                 return None
         return self._schema_cache
 
-    def _register_model(self, name, model):
+    def _register_model(self, name, model) -> None:
         """Wire a FileModel's dirty signal into the table + cockpit, baseline it clean, and store it."""
         model.dirtyChanged.connect(
             lambda dirty, filename=name: self.fileTable.update_status(
@@ -253,14 +254,14 @@ class SimulationCockpit(QWidget):
         model.mark_clean()
         self.models[name] = model
 
-    def _refresh_file_display(self, name, model):
+    def _refresh_file_display(self, name, model) -> None:
         """Push a model's current dirty + validation state into the table row."""
         self.fileTable.update_status(name, model.is_dirty())
         errors = self._validate_model(model)
         if errors is not None:
             self.fileTable.set_validation_status(name, errors)
 
-    def open_directory(self):
+    def open_directory(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self, "Select directory containing JSON files"
         )
@@ -285,7 +286,7 @@ class SimulationCockpit(QWidget):
         external_defaults: dict = None,
         path: list | None = None,
         _depth: int = 0,
-    ):
+    ) -> Any:
         """
         Generate a skeleton value for the provided subschema.
 
@@ -316,7 +317,7 @@ class SimulationCockpit(QWidget):
             path = []
 
         # helper: resolve internal $ref (only support '#/...' style)
-        def _resolve_ref(ref: str):
+        def _resolve_ref(ref: str) -> Any:
             if not isinstance(ref, str) or not ref.startswith("#/"):
                 return None
             parts = ref.lstrip("#/").split("/")
@@ -329,7 +330,7 @@ class SimulationCockpit(QWidget):
             return node
 
         # helper: lookup external defaults using the path; try exact path then nearest ancestor
-        def _external_lookup(ex_defaults, pth):
+        def _external_lookup(ex_defaults, pth) -> Any:
             if not ex_defaults:
                 return None
             # try exact
@@ -534,7 +535,7 @@ class SimulationCockpit(QWidget):
         # fallback
         return None
 
-    def create_new_file(self):
+    def create_new_file(self) -> None:
 
         self._check_unsaved()
 
@@ -595,7 +596,7 @@ class SimulationCockpit(QWidget):
         self.fileTable.refresh_table()
         self._refresh_file_display(new_name, model)
 
-    def save_file(self):
+    def save_file(self) -> None:
         row = self.fileTable.table.currentRow()
         if row < 0:
             return
@@ -611,7 +612,7 @@ class SimulationCockpit(QWidget):
                 f"No changes to save for {filename}"
             )
 
-    def save_all(self):
+    def save_all(self) -> None:
         count = 0
         for _filename, model in self.models.items():
             if model.is_dirty():
@@ -622,7 +623,7 @@ class SimulationCockpit(QWidget):
         for filename, model in self.models.items():
             self.fileTable.update_status(filename, model.is_dirty())
 
-    def discard_changes(self):
+    def discard_changes(self) -> None:
         row = self.fileTable.table.currentRow()
         if row < 0:
             return
@@ -643,7 +644,7 @@ class SimulationCockpit(QWidget):
             tbl.selectionModel().clearSelection()
             tbl.selectRow(row)
 
-    def discard_all_changes(self):
+    def discard_all_changes(self) -> None:
         current_label = self.settingsLabel.text().replace("Settings for: ", "")
         for filename, model in self.models.items():
             if model.is_dirty():
@@ -655,7 +656,7 @@ class SimulationCockpit(QWidget):
                     self.settings_tabs.setModel(model)
         self.fileTable.table.selectionModel().clearSelection()
 
-    def run_simulation_from_file_table(self):
+    def run_simulation_from_file_table(self) -> None:
         if self.simulation_running_flag:
             QMessageBox.warning(
                 self, "Simulation", "Simulation already running."
@@ -691,13 +692,13 @@ class SimulationCockpit(QWidget):
         self.simulationStateChanged.emit("running")
         self.batch_worker.start()
 
-    def _on_file_started(self, filename: str, total_steps: int):
+    def _on_file_started(self, filename: str, total_steps: int) -> None:
         self.fileTable.set_simulation_status(filename, FileSimState.SIMULATING)
 
-    def _on_file_finished(self, filename: str):
+    def _on_file_finished(self, filename: str) -> None:
         self.fileTable.set_simulation_status(filename, FileSimState.DONE)
 
-    def _on_all_finished(self):
+    def _on_all_finished(self) -> None:
         for name in list(self.models.keys()):
             self.fileTable.set_simulation_status(name, None)
         self.progressBar.setValue(0)
@@ -707,7 +708,7 @@ class SimulationCockpit(QWidget):
             self.batch_worker = None
         self.simulationStateChanged.emit("idle")
 
-    def startCompilationAnimation(self):
+    def startCompilationAnimation(self) -> None:
         # If an animation timer already exists, try to stop and delete it.
         if hasattr(self, "compilingTimer") and self.compilingTimer is not None:
             try:
@@ -724,7 +725,7 @@ class SimulationCockpit(QWidget):
         self.compilingTimer.start()
         self.isCompilingAnimationActive = True
 
-    def _update_compiling_status(self):
+    def _update_compiling_status(self) -> None:
         # Only update if the animation is active.
         if self.isCompilingAnimationActive:
             dots = "." * ((self.compilingAnimationStep % 3) + 1)
@@ -733,7 +734,7 @@ class SimulationCockpit(QWidget):
             )
             self.compilingAnimationStep += 1
 
-    def stopCompilationAnimation(self):
+    def stopCompilationAnimation(self) -> None:
         self.isCompilingAnimationActive = False
         if hasattr(self, "compilingTimer") and self.compilingTimer is not None:
             try:
@@ -744,7 +745,7 @@ class SimulationCockpit(QWidget):
                 pass
             self.compilingTimer = None
 
-    def _on_status_update(self, status):
+    def _on_status_update(self, status) -> None:
         # Start/stop compilation animation
         if status == "Simulation instance created":
             self.startCompilationAnimation()
@@ -770,13 +771,13 @@ class SimulationCockpit(QWidget):
         v = self.loggingField.verticalScrollBar()
         v.setValue(v.maximum())
 
-    def logMessage(self, message: str):
+    def logMessage(self, message: str) -> None:
         """Append a message to the log box and optionally print to console."""
         if hasattr(self, "loggingField") and self.loggingField is not None:
             self.loggingField.appendPlainText(message)
         print(message)
 
-    def _check_unsaved(self):
+    def _check_unsaved(self) -> None:
         # Save or discard unsaved changes
         dirty = [n for n, m in self.models.items() if m.is_dirty()]
         if dirty:
@@ -791,7 +792,7 @@ class SimulationCockpit(QWidget):
             if resp == QMessageBox.Save:
                 self.save_all()
 
-    def _on_model_dirty(self, filename, dirty):
+    def _on_model_dirty(self, filename, dirty) -> None:
         """
         Called when *any* model becomes dirty/clean.
         We always need to:
@@ -806,12 +807,12 @@ class SimulationCockpit(QWidget):
         if filename == current_label:
             self.fileDirtyChanged.emit(dirty)
 
-    def _emit_any_dirty(self):
+    def _emit_any_dirty(self) -> None:
         """Helper to recompute & emit whether at least one model is dirty."""
         any_dirty = any(m.is_dirty() for m in self.models.values())
         self.anyDirtyChanged.emit(any_dirty)
 
-    def _open_validation_dialog(self, filename: str):
+    def _open_validation_dialog(self, filename: str) -> None:
         model = self.models.get(filename)
         if model is None:
             return
@@ -825,7 +826,7 @@ class SimulationCockpit(QWidget):
         # Re-validate and update status after dialog closes (user may have saved changes)
         self._refresh_file_display(filename, model)
 
-    def resume_from_checkpoint(self):
+    def resume_from_checkpoint(self) -> None:
         """Continue an interrupted run from its latest checkpoint (distinct from unpause)."""
         if self.simulation_running_flag:
             QMessageBox.warning(
@@ -854,7 +855,7 @@ class SimulationCockpit(QWidget):
         self.simulationStateChanged.emit("running")
         self.batch_worker.start()
 
-    def _find_latest_resumable_checkpoint(self):
+    def _find_latest_resumable_checkpoint(self) -> str | None:
         """Scan simulation_results batch folders NEWEST-FIRST and return the first dir with a
         resumable checkpoint, or None. A later CLEAN batch deletes its own checkpoint (D-08),
         so do not stop at the newest folder if it has none.
@@ -889,17 +890,17 @@ class SimulationCockpit(QWidget):
         """True if a resumable checkpoint exists (used to gate the Resume-run action)."""
         return self._find_latest_resumable_checkpoint() is not None
 
-    def pause_simulation(self):
+    def pause_simulation(self) -> None:
         if self.batch_worker:
             self.batch_worker.pause()
             self.simulationStateChanged.emit("paused")
 
-    def resume_simulation(self):
+    def resume_simulation(self) -> None:
         if self.batch_worker:
             self.batch_worker.resume()
             self.simulationStateChanged.emit("running")
 
-    def cancel_simulation(self):
+    def cancel_simulation(self) -> None:
         if not self.batch_worker:
             return
         msg = QMessageBox(self)
@@ -928,7 +929,7 @@ class SimulationCockpit(QWidget):
             self.batch_worker.stop()
             # _on_all_finished will emit "idle" once the thread finishes
 
-    def _on_file_copied(self, original_name: str, copy_name: str):
+    def _on_file_copied(self, original_name: str, copy_name: str) -> None:
         """After FileTable actually writes the new JSON copy on disk,
         create a FileModel for it and register all the same signals.
         """

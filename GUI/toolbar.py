@@ -2,13 +2,13 @@ from PyQt5.QtWidgets import QAction, QStyle, QToolBar
 
 
 class ToolBar(QToolBar):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__("Main Toolbar", parent)
         self.setMovable(False)
         self.create_actions()
         self.add_actions()
 
-    def create_actions(self):
+    def create_actions(self) -> None:
         # Toolbar action for loading a file
         self.load_action = QAction(
             self.style().standardIcon(QStyle.SP_DialogOpenButton),
@@ -107,7 +107,7 @@ class ToolBar(QToolBar):
         self.cancel_action.setStatusTip("Cancel the current operation")
         self.cancel_action.setEnabled(False)
 
-    def add_actions(self):
+    def add_actions(self) -> None:
         # Add actions to the toolbar in the desired order
         self.addAction(self.load_action)
         self.addAction(self.new_action)

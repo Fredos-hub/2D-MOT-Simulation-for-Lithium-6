@@ -85,7 +85,7 @@ def validate_against_schema(config: dict[str, Any], schema_path: str) -> None:
 
     messages: list[str] = []
 
-    def _flatten_error(err):
+    def _flatten_error(err) -> None:
         path = ".".join(map(str, err.absolute_path)) or "root"
         messages.append(f"{path}: {err.message}")
         for sub in getattr(err, "context", []):
@@ -787,7 +787,7 @@ class Parameters:
         return list(self.errors)
 
 
-def write_atoms_to_csv(atoms, filename: str) -> None:
+def write_atoms_to_csv(atoms: ECSAtoms, filename: str) -> None:
     """Write per-atom positions, velocities, and state to a CSV file.
 
     Parameters

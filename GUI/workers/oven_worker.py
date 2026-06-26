@@ -18,22 +18,22 @@ class OvenWorker(QThread):
     # loop would otherwise spin forever. Abort once this many are generated.
     MAX_GENERATED = 100_000_000
 
-    def __init__(self, params, parent=None):
+    def __init__(self, params, parent=None) -> None:
         super().__init__(parent)
         self.params = params
         self._cancel = False
 
-    def cancel(self):
+    def cancel(self) -> None:
         """Request cooperative cancellation; the run loop checks this flag."""
         self._cancel = True
 
-    def run(self):
+    def run(self) -> None:
         try:
             self._run()
         except Exception as e:
             self.error.emit(str(e))
 
-    def _run(self):
+    def _run(self) -> None:
         # Unpack & convert geometry to meters
         m_u = self.params["atom_mass"]
         pdf_str = self.params["distribution"]

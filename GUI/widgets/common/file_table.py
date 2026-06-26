@@ -34,14 +34,14 @@ class FileSimState(StrEnum):
 class ReadOnlyDelegate(QStyledItemDelegate):
     """A delegate that prevents editing of cells."""
 
-    def createEditor(self, parent, option, index):
+    def createEditor(self, parent, option, index) -> None:
         return None
 
 
 class CenteredCheckBoxDelegate(QStyledItemDelegate):
     """Radio-button-style indicator, centered in the cell."""
 
-    def paint(self, painter, option, index):
+    def paint(self, painter, option, index) -> None:
         style = (
             option.widget.style() if option.widget else QApplication.style()
         )
@@ -75,7 +75,7 @@ class CenteredCheckBoxDelegate(QStyledItemDelegate):
         )
         painter.restore()
 
-    def editorEvent(self, event, model, option, index):
+    def editorEvent(self, event, model, option, index) -> bool:
         if not (index.flags() & Qt.ItemIsUserCheckable):
             return False
         if (
@@ -94,7 +94,7 @@ class _DraggableTable(QTableWidget):
 
     rowsReordered = pyqtSignal()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
@@ -113,7 +113,7 @@ class _DraggableTable(QTableWidget):
         rect = self.visualRect(index)
         return index.row() + 1 if pos.y() >= rect.center().y() else index.row()
 
-    def dropEvent(self, event):
+    def dropEvent(self, event) -> None:
         if event.source() is not self:
             super().dropEvent(event)
             return
@@ -168,7 +168,7 @@ class FileTableWidget(QWidget):
     fileSelected = pyqtSignal(str)  # file_name
     openDiffRequested = pyqtSignal(str)  # file_name
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._current_dir = None
         self._dirty_state: set = set()  # filenames with unsaved changes
@@ -178,7 +178,7 @@ class FileTableWidget(QWidget):
         self._order: list = []  # session-only user-defined row order
         self._setup_ui()
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         self.table = _DraggableTable(0, 3, self)
         self.table.setHorizontalHeaderLabels(
             ["Loaded File", "Ignore", "Status"]
@@ -209,13 +209,13 @@ class FileTableWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.table)
 
-    def load_directory(self, directory):
+    def load_directory(self, directory) -> None:
         if not os.path.isdir(directory):
             return
         self._current_dir = directory
         self.refresh_table()
 
-    def update_status(self, filename, dirty: bool):
+    def update_status(self, filename, dirty: bool) -> None:
         """Called when the dirty state of a file changes."""
         if dirty:
             self._dirty_state.add(filename)
@@ -225,7 +225,7 @@ class FileTableWidget(QWidget):
         if row >= 0:
             self._refresh_row_display(row, filename)
 
-    def set_validation_status(self, filename, errors):
+    def set_validation_status(self, filename, errors) -> None:
         """
         Set validation result for a file.
         errors: list of jsonschema ValidationError objects ([] = valid, None = unknown).
@@ -235,7 +235,9 @@ class FileTableWidget(QWidget):
         if row >= 0:
             self._refresh_row_display(row, filename)
 
-    def set_simulation_status(self, filename, state: FileSimState | None):
+    def set_simulation_status(
+        self, filename, state: FileSimState | None
+    ) -> None:
         """Set the simulation run state (PENDING / SIMULATING / DONE / None to clear)."""
         self._sim_state[filename] = state
         row = self._find_row(filename)
@@ -249,7 +251,7 @@ class FileTableWidget(QWidget):
                 return row
         return -1
 
-    def _refresh_row_display(self, row: int, filename: str):
+    def _refresh_row_display(self, row: int, filename: str) -> None:
         """
         Compute background + status text from all state layers (priority order):
           ignored > simulation state > dirty/validation
@@ -262,7 +264,7 @@ class FileTableWidget(QWidget):
         finally:
             self._updating_display = False
 
-    def _do_refresh_row_display(self, row: int, filename: str):
+    def _do_refresh_row_display(self, row: int, filename: str) -> None:
         status_item = self.table.item(row, 2)
         if status_item is None:
             return
@@ -339,7 +341,7 @@ class FileTableWidget(QWidget):
         status_item.setForeground(QBrush(fg))
         status_item.setTextAlignment(Qt.AlignCenter)
 
-    def _on_rows_reordered(self):
+    def _on_rows_reordered(self) -> None:
         """Sync session order list with the table's current row order."""
         self._order = [
             self.table.item(r, 0).text()
@@ -347,7 +349,7 @@ class FileTableWidget(QWidget):
             if self.table.item(r, 0)
         ]
 
-    def refresh_table(self):
+    def refresh_table(self) -> None:
         if not self._current_dir:
             return
         on_disk = [
@@ -393,19 +395,19 @@ class FileTableWidget(QWidget):
             fn = self.table.item(row, 0).text()
             self._refresh_row_display(row, fn)
 
-    def _on_double_clicked(self, item):
+    def _on_double_clicked(self, item) -> None:
         row = item.row()
         fn_item = self.table.item(row, 0)
         if fn_item:
             self.openDiffRequested.emit(fn_item.text())
 
-    def _on_selection_changed(self):
+    def _on_selection_changed(self) -> None:
         row = self.table.currentRow()
         if row >= 0:
             fn = self.table.item(row, 0).text()
             self.fileSelected.emit(fn)
 
-    def _on_item_changed(self, item):
+    def _on_item_changed(self, item) -> None:
         """React only to checkbox toggles in the Ignore column (col 1)."""
         if self._updating_display:
             return
@@ -419,7 +421,7 @@ class FileTableWidget(QWidget):
         self._apply_ignore(row, checked)
         self.fileIgnored.emit(name, checked)
 
-    def _apply_ignore(self, row: int, checked: bool):
+    def _apply_ignore(self, row: int, checked: bool) -> None:
         """Visual update for ignore state (does not emit fileIgnored)."""
         if self._updating_display:
             return
@@ -430,7 +432,7 @@ class FileTableWidget(QWidget):
         finally:
             self._updating_display = False
 
-    def _show_context_menu(self, point):
+    def _show_context_menu(self, point) -> None:
         row = self.table.rowAt(point.y())
         if row < 0:
             return
@@ -453,7 +455,7 @@ class FileTableWidget(QWidget):
         copy.triggered.connect(lambda: self._copy(row))
         menu.exec_(self.table.viewport().mapToGlobal(point))
 
-    def _rename(self, row):
+    def _rename(self, row) -> None:
         old = self.table.item(row, 0).text()
         base = os.path.splitext(old)[0]
         new_name, ok = QInputDialog.getText(
@@ -482,7 +484,7 @@ class FileTableWidget(QWidget):
         self.fileRenamed.emit(old, new_name)
         self.refresh_table()
 
-    def _delete(self, row):
+    def _delete(self, row) -> None:
         name = self.table.item(row, 0).text()
         path = os.path.join(self._current_dir, name)
         ans = QMessageBox.question(
@@ -502,7 +504,7 @@ class FileTableWidget(QWidget):
         self.fileDeleted.emit(name)
         self.refresh_table()
 
-    def _copy(self, row):
+    def _copy(self, row) -> None:
         """Create a copy of the selected JSON file, appending '_copy' to its base name."""
         original = self.table.item(row, 0).text()
         base, ext = os.path.splitext(original)

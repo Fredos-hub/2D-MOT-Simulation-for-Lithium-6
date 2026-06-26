@@ -92,7 +92,7 @@ def _style_axis(
     title_size=VEL_TITLE_SIZE,
     label_size=VEL_LABEL_SIZE,
     tick_size=VEL_TICK_SIZE,
-):
+) -> None:
     """Apply LaTeX-like font styling and font sizes to an axis."""
     ax.title.set_fontsize(title_size)
     ax.title.set_fontfamily(PLOT_FONT_FAMILY)
@@ -146,7 +146,7 @@ class SpectrumTab(QWidget):
 
     HELICITY_OPTIONS = ["-1", "0", "+1"]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
         self.file_df: pd.DataFrame | None = None
@@ -158,7 +158,7 @@ class SpectrumTab(QWidget):
 
     # UI
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
 
         upper_layout = QHBoxLayout()
@@ -385,7 +385,7 @@ class SpectrumTab(QWidget):
         spin.setValue(value)
         return spin
 
-    def _hbox(self, *widgets):
+    def _hbox(self, *widgets) -> QHBoxLayout:
         h = QHBoxLayout()
         for w in widgets:
             h.addWidget(w)
@@ -393,7 +393,7 @@ class SpectrumTab(QWidget):
 
     # snapshot
 
-    def _refresh_ui_state(self):
+    def _refresh_ui_state(self) -> None:
         has_file = self.file_df is not None and self.step_times_s.size > 0
         self.step_spin.setEnabled(has_file)
         self.bin_spin.setEnabled(has_file)
@@ -412,7 +412,7 @@ class SpectrumTab(QWidget):
             self.step_time_label.setText("0.000 ms")
             self._clear_plots()
 
-    def _browse_input(self):
+    def _browse_input(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Simulation Result", filter="CSV files (*.csv)"
         )
@@ -421,7 +421,7 @@ class SpectrumTab(QWidget):
             self.input_line.setText(rel)
             self._load_file_data(rel)
 
-    def _load_file_data(self, input_file: str):
+    def _load_file_data(self, input_file: str) -> None:
         try:
             df = pd.read_csv(input_file)
         except Exception as exc:
@@ -459,7 +459,7 @@ class SpectrumTab(QWidget):
             )
         self._refresh_ui_state()
 
-    def _on_step_changed(self, step: int):
+    def _on_step_changed(self, step: int) -> None:
         if self.step_times_s.size == 0:
             self.step_time_label.setText("0.000 ms")
             return
@@ -511,13 +511,13 @@ class SpectrumTab(QWidget):
 
     # plot
 
-    def _reset_axis_titles(self):
+    def _reset_axis_titles(self) -> None:
         self.axes[0, 0].set_title(r"$v_x$")
         self.axes[0, 1].set_title(r"$v_y$")
         self.axes[1, 0].set_title(r"$v_z$")
         self.axes[1, 1].set_title(r"$|v|$")
 
-    def _clear_plots(self):
+    def _clear_plots(self) -> None:
         for ax in self.axes.flat:
             ax.clear()
             ax.grid(True, alpha=0.25)
@@ -531,7 +531,7 @@ class SpectrumTab(QWidget):
         """Lab-frame elapsed time for a snapshot step: (step + 1) * dt."""
         return (int(step) + 1) * DEFAULT_DT_S
 
-    def _update_velocity_plots(self):
+    def _update_velocity_plots(self) -> None:
         snapshot = self._step_snapshot()
         if snapshot is None:
             self.export_snapshot_btn.setEnabled(False)
@@ -569,7 +569,7 @@ class SpectrumTab(QWidget):
         self.export_snapshot_btn.setEnabled(True)
         self.canvas.draw_idle()
 
-    def _plot_hist(self, ax, data: np.ndarray, bins: int, label: str):
+    def _plot_hist(self, ax, data: np.ndarray, bins: int, label: str) -> None:
         if data.size == 0:
             ax.set_title(f"{label} (empty)")
             _style_axis(ax)
@@ -582,7 +582,7 @@ class SpectrumTab(QWidget):
 
     # snapshot export
 
-    def _export_snapshot_csv(self):
+    def _export_snapshot_csv(self) -> None:
         snapshot = self._step_snapshot()
         if snapshot is None:
             self.statusLabel.setText("Status: no snapshot to export.")
@@ -629,17 +629,17 @@ class SpectrumTab(QWidget):
 
     # magnetic field
 
-    def _on_use_position_toggled(self, checked: bool):
+    def _on_use_position_toggled(self, checked: bool) -> None:
         self.beam_origin.setEnabled(checked)
 
-    def _on_b_field_toggled(self, checked: bool):
+    def _on_b_field_toggled(self, checked: bool) -> None:
         self.b_field_line.setEnabled(checked)
         self.b_field_browse_btn.setEnabled(checked)
         if not checked:
             self.b_field_config = None
             self.b_field_info_label.setText("No file loaded.")
 
-    def _browse_b_field(self):
+    def _browse_b_field(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Open parameters.json", filter="JSON files (*.json)"
         )
@@ -649,7 +649,7 @@ class SpectrumTab(QWidget):
         self.b_field_line.setText(rel)
         self._load_b_field_config(path)
 
-    def _load_b_field_config(self, path: str):
+    def _load_b_field_config(self, path: str) -> None:
         try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
@@ -682,7 +682,7 @@ class SpectrumTab(QWidget):
                 out.append(0.0)
         return out
 
-    def _compute_spectrum(self):
+    def _compute_spectrum(self) -> None:
         """
         Run the steady-state frequency-scan and show the result in a popup.
         """
@@ -854,7 +854,7 @@ class SpectrumDialog(QDialog):
         n_ground_states: int,
         y_label: str,
         title: str,
-    ):
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Spectrum")
         self.setModal(False)
@@ -921,7 +921,7 @@ class SpectrumDialog(QDialog):
 
         canvas.draw_idle()
 
-    def _export_csv(self):
+    def _export_csv(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export spectrum data",

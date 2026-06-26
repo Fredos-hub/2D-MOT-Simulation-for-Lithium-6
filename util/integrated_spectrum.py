@@ -44,16 +44,16 @@ def plot_integrated_spectrum(
     scan_min_MHz: float = -80.0,
     scan_max_MHz: float = 260.0,
     n_bins: int = 300,
-    direction=(0.0, -1.0, -0.16),
+    direction: tuple[float, float, float] = (0.0, -1.0, -0.16),
     power_mW: float = 0.005,
     radius_mm: float = 0.5,
-    origin_m=(0.0, 0.0, 0.0),
+    origin_m: tuple[float, float, float] = (0.0, 0.0, 0.0),
     interaction_name: str = "Lithium18LevelInteraction",
     use_b_field: bool = True,
     step_stride: int = 1,
     save_path: str | Path | None = None,
     show: bool = False,
-):
+) -> None:
     csv_path = Path(csv_path)
     config_path = Path(config_path)
     cfg = json.loads(config_path.read_text())

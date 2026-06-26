@@ -25,7 +25,7 @@ class SimulationSettingsTab(SettingsTab):
 
     SECTION = "Simulation"
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         layout = QFormLayout(self)
 
         # defaultStepSpin
@@ -116,7 +116,7 @@ class SimulationSettingsTab(SettingsTab):
         layout.addRow(self.rateGroup)
         # End Rate Settings Group
 
-    def _connect_signals(self):
+    def _connect_signals(self) -> None:
 
         # commit changes on edit/value change
 
@@ -167,7 +167,7 @@ class SimulationSettingsTab(SettingsTab):
             lambda v: self._update_model("injection_cutoff_time", v)
         )
 
-    def setModel(self, model):
+    def setModel(self, model) -> None:
         self._model = model
         widgets = (
             self.resolutionSpin,
@@ -232,13 +232,13 @@ class SimulationSettingsTab(SettingsTab):
 
         self._estimate_atom_count()
 
-    def _on_rate_mode_toggled(self, checked):
+    def _on_rate_mode_toggled(self, checked) -> None:
         # Enable/disable just the Flux and Macroparticle spin boxes
         self.fluxSpin.setEnabled(checked)
         self.macroparticleSpin.setEnabled(checked)
         self.injectionCutoffSpin.setEnabled(checked)
 
-    def _estimate_atom_count(self):
+    def _estimate_atom_count(self) -> None:
 
         rate = self.fluxSpin.value() * 1e9
         simulation_time = self.maxTimeSpin.value() * 1e-3
