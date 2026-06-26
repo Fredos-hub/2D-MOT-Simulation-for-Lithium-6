@@ -1,5 +1,4 @@
-"""
-Checkpoint save/load for batch simulations.
+"""Checkpoint save/load for batch simulations.
 
 A checkpoint is a pair of files written into a run directory:
 
@@ -24,7 +23,6 @@ import os
 import pickle
 
 import numpy as np
-
 
 CHECKPOINT_VERSION = 1
 
@@ -70,7 +68,9 @@ def save_checkpoint(sim, batch_state, dest_dir):
     os.makedirs(dest_dir, exist_ok=True)
 
     atoms = sim.simulation_atoms
-    npz_payload = {name: np.asarray(getattr(atoms, name)) for name in _ATOM_ARRAYS}
+    npz_payload = {
+        name: np.asarray(getattr(atoms, name)) for name in _ATOM_ARRAYS
+    }
     npz_payload["excitation_counter"] = np.asarray(sim.excitation_counter)
     npz_payload["excitation_hist"] = np.asarray(sim.excitation_hist)
 
@@ -79,7 +79,9 @@ def save_checkpoint(sim, batch_state, dest_dir):
 
     # NumPy's global RNG state is a small tuple; pickle then b64-encode so it
     # round-trips through JSON without surprises.
-    rng_blob = base64.b64encode(pickle.dumps(np.random.get_state())).decode("ascii")
+    rng_blob = base64.b64encode(pickle.dumps(np.random.get_state())).decode(
+        "ascii"
+    )
 
     meta = {
         "version": CHECKPOINT_VERSION,
@@ -125,7 +127,7 @@ def load_checkpoint(checkpoint_dir):
     json_path = os.path.join(checkpoint_dir, "checkpoint.json")
     npz_path = os.path.join(checkpoint_dir, "checkpoint.npz")
 
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         meta = json.load(f)
 
     if meta.get("version") != CHECKPOINT_VERSION:

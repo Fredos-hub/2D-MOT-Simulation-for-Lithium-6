@@ -1,6 +1,7 @@
-from PyQt5.QtWidgets  import QWidget, QHBoxLayout, QLineEdit
-from PyQt5.QtGui      import QDoubleValidator
-from PyQt5.QtCore     import pyqtSignal
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QDoubleValidator
+from PyQt5.QtWidgets import QHBoxLayout, QLineEdit, QWidget
+
 
 class VectorInputWidget(QWidget):
     # Emit the new vector as a list of floats whenever it changes
@@ -47,7 +48,7 @@ class VectorInputWidget(QWidget):
         for edit in self.edits:
             edit.blockSignals(True)
 
-        for edit, v in zip(self.edits, vec):
+        for edit, v in zip(self.edits, vec, strict=False):
             edit.setText(str(v))
 
         for edit in self.edits:

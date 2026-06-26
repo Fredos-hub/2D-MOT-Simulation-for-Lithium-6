@@ -1,14 +1,23 @@
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox,
-    QLineEdit, QPushButton, QMessageBox, QTableWidgetItem
-)
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 class EditAllPopup(QWidget):
     """
     Popup for editing all selected lasers’ numeric properties at once,
     and writing them back into both the table AND the model.
     """
+
     def __init__(self, parent_tab):
         """
         parent_tab: instance of LasersSettingsTab
@@ -16,7 +25,9 @@ class EditAllPopup(QWidget):
         super().__init__(flags=Qt.Window)
         self.parent_tab = parent_tab
         self.table = parent_tab.table
-        self.col_cfg = parent_tab.columnConfig  # { colIndex: { 'key':..., 'factor':..., … } }
+        self.col_cfg = (
+            parent_tab.columnConfig
+        )  # { colIndex: { 'key':..., 'factor':..., … } }
 
         self.setWindowTitle("Edit All Selected Lasers")
         layout = QVBoxLayout(self)
@@ -24,7 +35,9 @@ class EditAllPopup(QWidget):
         # get selected rows
         sel = self.table.selectionModel().selectedRows()
         if not sel:
-            QMessageBox.warning(self, "No Selection", "Please select at least one row first.")
+            QMessageBox.warning(
+                self, "No Selection", "Please select at least one row first."
+            )
             self.close()
             return
 
@@ -32,7 +45,7 @@ class EditAllPopup(QWidget):
         self.fields = {}  # map colIndex -> (checkbox, line_edit)
 
         # build a UI row for each numeric column in columnConfig
-        for col, info in self.col_cfg.items():
+        for col, _info in self.col_cfg.items():
             header = self.table.horizontalHeaderItem(col).text()
             h = QHBoxLayout()
 
@@ -78,14 +91,18 @@ class EditAllPopup(QWidget):
                 try:
                     val = float(txt)
                 except ValueError:
-                    QMessageBox.warning(self, "Invalid Input",
-                                        f"‘{txt}’ is not a number for column {col}.")
+                    QMessageBox.warning(
+                        self,
+                        "Invalid Input",
+                        f"‘{txt}’ is not a number for column {col}.",
+                    )
                     return
                 updates[col] = val
 
         if not updates:
-            QMessageBox.information(self, "Nothing to Do",
-                                    "No fields were checked for updating.")
+            QMessageBox.information(
+                self, "Nothing to Do", "No fields were checked for updating."
+            )
             return
 
         # gather all selected rows
@@ -96,12 +113,12 @@ class EditAllPopup(QWidget):
             for col, new_val in updates.items():
                 info = self.col_cfg[col]
                 # convert back to the model-units
-                model_val = new_val / info['factor']
+                model_val = new_val / info["factor"]
                 # 1) update the model
-                self.parent_tab._update_model(row, info['key'], model_val)
+                self.parent_tab._update_model(row, info["key"], model_val)
 
                 # 2) update the table cell text
-                text = info['format'].format(new_val)
+                text = info["format"].format(new_val)
                 item = self.table.item(row, col)
                 if item:
                     item.setText(text)

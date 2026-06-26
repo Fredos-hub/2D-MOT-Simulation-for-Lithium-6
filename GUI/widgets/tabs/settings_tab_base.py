@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+
 from PyQt5.QtWidgets import QWidget
 
 
@@ -22,6 +23,7 @@ class SettingsTab(QWidget):
     ``_update_model``; ``setModel`` populates widgets inside a ``signals_blocked``
     block so loading never marks the model dirty.
     """
+
     SECTION = None
 
     def __init__(self, parent=None):

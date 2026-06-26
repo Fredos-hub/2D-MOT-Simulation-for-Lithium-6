@@ -1,12 +1,9 @@
 import numpy as np
 import scipy.constants as scc
 
-
-# ---------------------------------------------------------------------------
 # Dummy classes for type hints and IDE tooltips only.
 # The real implementations are jitclasses in src/ — these dummies are never
 # instantiated in a simulation run.
-# ---------------------------------------------------------------------------
 
 
 class ECSAtoms:
@@ -37,7 +34,9 @@ class ECSAtoms:
     def __init__(self, n: int = 1000) -> None:
         self.n = n
         self.mass_u = 6.015
-        self.mass = self.mass_u * scc.physical_constants["atomic mass constant"][0]
+        self.mass = (
+            self.mass_u * scc.physical_constants["atomic mass constant"][0]
+        )
         self.natural_linewidth = 2 * np.pi * 5.87e6
         self.transition_frequency = 446799648.889e6
         self.saturation_intensity = (
@@ -73,9 +72,6 @@ class ECSAtoms:
         self.time_overshoot[:] = starting_times
 
 
-# ---------------------------------------------------------------------------
-
-
 class MagneticField:
     """
     Dummy interface matching the magnetic-field jitclasses in src/magnetic_field.py.
@@ -84,20 +80,25 @@ class MagneticField:
     inside the @njit per-atom while-loop.
     """
 
-    def calculate_magnetic_field(self, simulation_atoms: ECSAtoms, atom_id: int) -> None:
+    def calculate_magnetic_field(
+        self, simulation_atoms: ECSAtoms, atom_id: int
+    ) -> None:
         raise NotImplementedError
 
-    def calculate_max_step_length(self, simulation_atoms: ECSAtoms, atom_id: int) -> None:
+    def calculate_max_step_length(
+        self, simulation_atoms: ECSAtoms, atom_id: int
+    ) -> None:
         raise NotImplementedError
 
-    def calculate_mean_free_path(self, mean_excitation_time: float, atom_velocity: np.ndarray) -> float:
+    def calculate_mean_free_path(
+        self, mean_excitation_time: float, atom_velocity: np.ndarray
+    ) -> float:
         raise NotImplementedError
 
-    def calculate_max_time_step(self, max_step_length: float, atom_velocity: np.ndarray) -> float:
+    def calculate_max_time_step(
+        self, max_step_length: float, atom_velocity: np.ndarray
+    ) -> float:
         raise NotImplementedError
-
-
-# ---------------------------------------------------------------------------
 
 
 class ECSLasers:
@@ -156,10 +157,7 @@ class ECSLasers:
         self.beam_wavelengths[index] = scc.c / beam_frequency
         k = 2 * np.pi / self.beam_wavelengths[index]
         self.wave_vectors[index] = k * self.normalized_directions[index]
-        self.initial_intensities[index] = 2 * beam_power / (np.pi * waist ** 2)
-
-
-# ---------------------------------------------------------------------------
+        self.initial_intensities[index] = 2 * beam_power / (np.pi * waist**2)
 
 
 class LightAtomInteraction:

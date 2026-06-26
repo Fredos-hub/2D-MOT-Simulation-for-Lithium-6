@@ -1,13 +1,21 @@
-import os
 import inspect
+
 import scipy.constants as scc
+from PyQt5.QtCore import QDir, Qt
 from PyQt5.QtWidgets import (
-    QFormLayout, QLineEdit, QComboBox, QCheckBox, QSpinBox, QMessageBox, QPushButton, QFileDialog
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QFormLayout,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
 )
-from PyQt5.QtCore import Qt, QDir
+
+import src.atoms as atoms
 from GUI.widgets.common.vector_input_widget import VectorInputWidget
 from GUI.widgets.tabs.settings_tab_base import SettingsTab, signals_blocked
-import src.atoms as atoms
 
 
 class AtomsSettingsTab(SettingsTab):
@@ -21,7 +29,6 @@ class AtomsSettingsTab(SettingsTab):
       - randomize_ground_state stored under Atoms.randomize_ground_state.
       - sample_file stored under Atoms.sample_file; disables velocity and ground-state fields when set.
     """
-
 
     SECTION = "Atoms"
 
@@ -56,12 +63,16 @@ class AtomsSettingsTab(SettingsTab):
         # Transition frequency (read-only)
         self.transitionFreqDisplay = QLineEdit()
         self.transitionFreqDisplay.setReadOnly(True)
-        layout.addRow("Transition Frequency (MHz):", self.transitionFreqDisplay)
+        layout.addRow(
+            "Transition Frequency (MHz):", self.transitionFreqDisplay
+        )
         self.transitionFreqDisplay.setMaximumWidth(225)
         # Natural linewidth (read-only)
         self.naturalLinewidthDisplay = QLineEdit()
         self.naturalLinewidthDisplay.setReadOnly(True)
-        layout.addRow("Natural Linewidth (MHz) 2π ×", self.naturalLinewidthDisplay)
+        layout.addRow(
+            "Natural Linewidth (MHz) 2π ×", self.naturalLinewidthDisplay
+        )
         self.naturalLinewidthDisplay.setMaximumWidth(225)
 
         # Start pos/vel
@@ -81,8 +92,6 @@ class AtomsSettingsTab(SettingsTab):
         # Randomize ground state toggle
         self.randomizeCheckbox = QCheckBox("Randomize Ground State")
         layout.addRow(self.randomizeCheckbox)
-
-
 
         # Sample type
         self.sampleTypeCombo = QComboBox()
@@ -104,20 +113,36 @@ class AtomsSettingsTab(SettingsTab):
         # Species selection
         self.speciesCombo.currentTextChanged.connect(self._on_species_changed)
         # Number of atoms
-        self.numAtomsSpin.valueChanged.connect(lambda v: self._update_model('number', v))
+        self.numAtomsSpin.valueChanged.connect(
+            lambda v: self._update_model("number", v)
+        )
         # Start position / velocity — vectorChanged now emits the full [x,y,z] list
-        self.startPosWidget.vectorChanged.connect(lambda vec: self._update_model('start_position', vec))
-        self.startVelWidget.vectorChanged.connect(lambda vec: self._update_model('start_velocity', vec))
+        self.startPosWidget.vectorChanged.connect(
+            lambda vec: self._update_model("start_position", vec)
+        )
+        self.startVelWidget.vectorChanged.connect(
+            lambda vec: self._update_model("start_velocity", vec)
+        )
         # Initial ground state index
-        self.groundStateCombo.currentTextChanged.connect(lambda text: self._update_model('ground_state', int(text)))
+        self.groundStateCombo.currentTextChanged.connect(
+            lambda text: self._update_model("ground_state", int(text))
+        )
         # Randomize checkbox
-        self.randomizeCheckbox.stateChanged.connect(lambda state: self._update_model('randomize_ground_state', state == Qt.Checked))
-        self.randomizeCheckbox.toggled.connect(self.groundStateCombo.setDisabled)
+        self.randomizeCheckbox.stateChanged.connect(
+            lambda state: self._update_model(
+                "randomize_ground_state", state == Qt.Checked
+            )
+        )
+        self.randomizeCheckbox.toggled.connect(
+            self.groundStateCombo.setDisabled
+        )
         # Sample file change (_on_sample_changed already calls _update_model internally)
         self.sample_line.textChanged.connect(self._on_sample_changed)
 
         # Sample type
-        self.sampleTypeCombo.currentIndexChanged.connect(self._on_sample_type_changed)
+        self.sampleTypeCombo.currentIndexChanged.connect(
+            self._on_sample_type_changed
+        )
 
     def setModel(self, model):
         self._model = model
@@ -136,45 +161,63 @@ class AtomsSettingsTab(SettingsTab):
                 # Populate fields from model
                 self.speciesCombo.setCurrentIndex(
                     self.speciesCombo.findText(
-                        model.safe_get('Atoms', 'species', default=self.speciesCombo.itemText(0))
+                        model.safe_get(
+                            "Atoms",
+                            "species",
+                            default=self.speciesCombo.itemText(0),
+                        )
                     )
                 )
-                inst = self.species_instances.get(self.speciesCombo.currentText(), None)
+                inst = self.species_instances.get(
+                    self.speciesCombo.currentText(), None
+                )
                 if inst is None:
-                    raise ValueError(f"Species '{self.speciesCombo.currentText()}' not found.")
+                    raise ValueError(
+                        f"Species '{self.speciesCombo.currentText()}' not found."
+                    )
                 self.massDisplay.setText(str(inst.mass_u))
-                self.transitionFreqDisplay.setText(f"{inst.transition_frequency/1e6:.1f}")
-                lw = inst.natural_linewidth/(2*scc.pi*1e6)
+                self.transitionFreqDisplay.setText(
+                    f"{inst.transition_frequency / 1e6:.1f}"
+                )
+                lw = inst.natural_linewidth / (2 * scc.pi * 1e6)
                 self.naturalLinewidthDisplay.setText(f"{lw:.2f}")
 
                 self.numAtomsSpin.setValue(
-                    model.safe_get('Atoms', 'number', default=1)
+                    model.safe_get("Atoms", "number", default=1)
                 )
                 self.startPosWidget.setVector(
-                    model.safe_get('Atoms', 'start_position', default=[0,0,0])
+                    model.safe_get(
+                        "Atoms", "start_position", default=[0, 0, 0]
+                    )
                 )
                 self.startVelWidget.setVector(
-                    model.safe_get('Atoms', 'start_velocity', default=[0,0,0])
+                    model.safe_get(
+                        "Atoms", "start_velocity", default=[0, 0, 0]
+                    )
                 )
 
                 # Ground‐state combo
-                gs = model.safe_get('Atoms', 'ground_state', default=0)
+                gs = model.safe_get("Atoms", "ground_state", default=0)
                 idx = self.groundStateCombo.findText(str(gs))
                 if idx >= 0:
                     self.groundStateCombo.setCurrentIndex(idx)
 
                 # Randomized flag
-                rnd = model.safe_get('Atoms', 'randomize_ground_state', default=False)
+                rnd = model.safe_get(
+                    "Atoms", "randomize_ground_state", default=False
+                )
                 self.randomizeCheckbox.setChecked(rnd)
 
                 # Sample file
-                sample = model.safe_get('Atoms', 'sample_file', default='')
+                sample = model.safe_get("Atoms", "sample_file", default="")
                 self.sample_line.setText(sample)
                 # Reflect disable states
                 self._update_sample_field_states(bool(sample))
 
                 # Sample type
-                sample_style = model.safe_get('Atoms', 'sample_style', default='oven')
+                sample_style = model.safe_get(
+                    "Atoms", "sample_style", default="oven"
+                )
                 idx = self.sampleTypeCombo.findData(sample_style)
                 if idx >= 0:
                     self.sampleTypeCombo.setCurrentIndex(idx)
@@ -183,24 +226,25 @@ class AtomsSettingsTab(SettingsTab):
             QMessageBox.warning(
                 self,
                 "Load Error",
-                f"Some atom settings failed to load.\n\n{e}"
+                f"Some atom settings failed to load.\n\n{e}",
             )
 
-
     def _browse_sample(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Load Sample", filter="CSV files (*.csv)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load Sample", filter="CSV files (*.csv)"
+        )
         if path:
             rel = QDir().relativeFilePath(path)
             self.sample_line.setText(rel)
             # write to model
-            self._update_model('sample_file', rel)
+            self._update_model("sample_file", rel)
             # disable relevant fields
             self._update_sample_field_states(True)
 
     def _on_sample_changed(self, path):
         populated = bool(path)
         # update model
-        self._update_model('sample_file', path)
+        self._update_model("sample_file", path)
         # reflect UI state
         self._update_sample_field_states(populated)
 
@@ -210,20 +254,23 @@ class AtomsSettingsTab(SettingsTab):
         self.startVelWidget.setDisabled(populated)
         # Disable ground-state controls when sample is set
         self.randomizeCheckbox.setDisabled(populated)
-        self.groundStateCombo.setDisabled(populated or self.randomizeCheckbox.isChecked())
+        self.groundStateCombo.setDisabled(
+            populated or self.randomizeCheckbox.isChecked()
+        )
 
     def _on_species_changed(self, text):
-        self._update_model('species', text)
+        self._update_model("species", text)
         inst = self.species_instances[self.speciesCombo.currentText()]
         self.massDisplay.setText(str(inst.mass_u))
-        self.transitionFreqDisplay.setText(f"{inst.transition_frequency/1e6:.1f}")
-        lw = inst.natural_linewidth/(2*scc.pi*1e6)
+        self.transitionFreqDisplay.setText(
+            f"{inst.transition_frequency / 1e6:.1f}"
+        )
+        lw = inst.natural_linewidth / (2 * scc.pi * 1e6)
         self.naturalLinewidthDisplay.setText(f"{lw:.2f}")
         self.setModel(self._model)
-
 
     def _on_sample_type_changed(self, index):
         if index < 0:
             return
         value = self.sampleTypeCombo.itemData(index)
-        self._update_model('sample_style', value)
+        self._update_model("sample_style", value)

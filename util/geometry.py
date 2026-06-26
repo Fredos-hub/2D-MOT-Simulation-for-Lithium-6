@@ -1,14 +1,9 @@
-############################################################################
-#Class to handle generating random values for angles and starting positions#
-############################################################################
+# Class to handle generating random values for angles and starting positions
 
 import math
-from numba import njit
+
 import numpy as np
-from matplotlib import pyplot as plt
-from typing import Optional
-
-
+from numba import njit
 
 
 @njit
@@ -29,7 +24,7 @@ def random_angle_in_hemisphere() -> tuple:
     u = np.random.uniform(0, 1)
     # Generate a uniform random number for the azimuthal component.
     v = np.random.uniform(0, 1)
-    
+
     # Compute the polar angle using inverse sine to favor directions closer to the z-axis.
     theta = math.asin(math.sqrt(u))
     # Compute the azimuthal angle uniformly around the circle.
@@ -37,7 +32,9 @@ def random_angle_in_hemisphere() -> tuple:
     return theta, phi
 
 
-def random_angle_in_oriented_hemisphere(normal_vector: tuple = (0, 1, 0)) -> np.ndarray:
+def random_angle_in_oriented_hemisphere(
+    normal_vector: tuple = (0, 1, 0),
+) -> np.ndarray:
     """
     Generate a random direction in a hemisphere aligned with a given normal vector.
 
@@ -53,7 +50,7 @@ def random_angle_in_oriented_hemisphere(normal_vector: tuple = (0, 1, 0)) -> np.
     """
     # Generate a random angle in a hemisphere aligned with the z-axis.
     theta, phi = random_angle_in_hemisphere()
-    
+
     # Convert spherical coordinates (theta, phi) to Cartesian coordinates.
     x = np.sin(theta) * np.cos(phi)
     y = np.sin(theta) * np.sin(phi)
@@ -70,8 +67,9 @@ def random_angle_in_oriented_hemisphere(normal_vector: tuple = (0, 1, 0)) -> np.
     return np.dot(rotation_matrix, random_direction)
 
 
-def sample_velocities_from_speeds(speeds, *, uniform: bool = True,
-                                  rng: Optional[np.random.Generator] = None) -> np.ndarray:
+def sample_velocities_from_speeds(
+    speeds, *, uniform: bool = True, rng: np.random.Generator | None = None
+) -> np.ndarray:
     """
     Convert speed magnitudes to velocity vectors on the +y hemisphere.
 
@@ -88,9 +86,9 @@ def sample_velocities_from_speeds(speeds, *, uniform: bool = True,
     phi = rng.random(N) * 2.0 * np.pi
 
     if uniform:
-        cos_theta = rng.random(N)           # uniform solid angle on hemisphere
+        cos_theta = rng.random(N)  # uniform solid angle on hemisphere
     else:
-        cos_theta = np.sqrt(rng.random(N)) # Lambertian / cosine-weighted
+        cos_theta = np.sqrt(rng.random(N))  # Lambertian / cosine-weighted
 
     sin_theta = np.sqrt(np.maximum(0.0, 1.0 - cos_theta**2))
 
@@ -142,7 +140,7 @@ def align_vectors(vec1: np.ndarray, vec2: np.ndarray) -> np.ndarray:
     # Normalize both vectors to unit length.
     vec1 = vec1 / np.linalg.norm(vec1)
     vec2 = vec2 / np.linalg.norm(vec2)
-    
+
     # Compute the cross product and dot product between vec1 and vec2.
     v = np.cross(vec1, vec2)
     c = np.dot(vec1, vec2)
@@ -153,13 +151,9 @@ def align_vectors(vec1: np.ndarray, vec2: np.ndarray) -> np.ndarray:
         return np.eye(3)
 
     # Create the skew-symmetric cross-product matrix for vector v.
-    vx = np.array([
-        [0, -v[2], v[1]],
-        [v[2], 0, -v[0]],
-        [-v[1], v[0], 0]
-    ])
+    vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
     # Compute the rotation matrix using Rodrigues' rotation formula.
-    rotation_matrix = np.eye(3) + vx + np.dot(vx, vx) * ((1 - c) / (s ** 2))
+    rotation_matrix = np.eye(3) + vx + np.dot(vx, vx) * ((1 - c) / (s**2))
     return rotation_matrix
 
 
@@ -190,7 +184,7 @@ def random_point_on_oven(radius: float, offset: float) -> np.ndarray:
     return np.array([x, offset, z])
 
 
-@njit 
+@njit
 def random_angle_in_sphere() -> np.ndarray:
     """
     Generate a random direction uniformly distributed on the surface of a sphere.
@@ -216,17 +210,16 @@ def random_angle_in_sphere() -> np.ndarray:
     return np.array([x, y, z])
 
 
-
 @njit
 def random_emission_in_sphere_directions(n: int) -> np.ndarray:
     """
     Generate n random directions uniformly distributed on the surface of a sphere.
-    
+
     Parameters
     ----------
     n : int
         The number of random unit vectors to generate.
-    
+
     Returns
     -------
     np.ndarray
@@ -264,7 +257,9 @@ def polar_to_cartesian_2d_y_axis(r: float, theta: float) -> np.ndarray:
 
 
 @njit
-def polar_to_cartesian_3(r: np.ndarray, theta: np.ndarray, phi: np.ndarray) -> np.ndarray:
+def polar_to_cartesian_3(
+    r: np.ndarray, theta: np.ndarray, phi: np.ndarray
+) -> np.ndarray:
     """
     Convert arrays of 3D polar coordinates (r, theta, phi) to Cartesian coordinates.
 
@@ -291,7 +286,9 @@ def polar_to_cartesian_3(r: np.ndarray, theta: np.ndarray, phi: np.ndarray) -> n
 
 
 @njit
-def polar_to_cartesian_y_axis(r: float, theta: float, phi: float) -> np.ndarray:
+def polar_to_cartesian_y_axis(
+    r: float, theta: float, phi: float
+) -> np.ndarray:
     """
     Convert polar coordinates (r, theta, phi) to Cartesian coordinates where the angles
     are defined relative to the y-axis (vertical direction).
@@ -349,7 +346,3 @@ def random_angle() -> float:
         A random angle uniformly distributed between 0 and 2π.
     """
     return np.random.uniform(0, 2.0 * math.pi)
-
-
-
-

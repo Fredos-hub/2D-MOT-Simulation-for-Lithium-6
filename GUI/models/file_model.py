@@ -1,15 +1,16 @@
-# models/file_model.py
-
-import json
 import copy
+import json
 from pathlib import Path
+
 from PyQt5.QtCore import QObject, pyqtSignal
+
 
 class FileModel(QObject):
     """
     In-memory model of a JSON file, with change-tracking ("dirty") and
     nested get/set for arbitrary keys.
     """
+
     dirtyChanged = pyqtSignal(bool)
 
     def __init__(self, filepath):
@@ -23,7 +24,7 @@ class FileModel(QObject):
     def _load_file(self):
         if not self.filepath.exists():
             return {}
-        with open(self.filepath, 'r', encoding='utf-8') as f:
+        with open(self.filepath, encoding="utf-8") as f:
             return json.load(f)
 
     def is_dirty(self):
@@ -39,7 +40,7 @@ class FileModel(QObject):
         self._update_dirty()
 
     def _update_dirty(self):
-        dirty = (self._current != self._original)
+        dirty = self._current != self._original
         if dirty != self._dirty:
             self._dirty = dirty
             self.dirtyChanged.emit(self._dirty)
@@ -57,11 +58,13 @@ class FileModel(QObject):
             if node is default:
                 return default
         return node
+
     def safe_get(self, section, key, default):
         try:
             return self.get(section, key, default=default)
         except Exception:
             return default
+
     def set(self, value, *keys):
         """
         Set a nested key, creating intermediate dicts as needed.
@@ -78,8 +81,7 @@ class FileModel(QObject):
         Write _current back to the JSON file, update _original, clear dirty.
         """
         self.filepath.write_text(
-            json.dumps(self._current, indent=4),
-            encoding='utf-8'
+            json.dumps(self._current, indent=4), encoding="utf-8"
         )
         self._original = copy.deepcopy(self._current)
         self._update_dirty()
