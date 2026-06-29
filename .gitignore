@@ -17,3 +17,4 @@ pushbeam_detuning_histograms.py
 trapped_atoms_heatmap.py
 .planning/
 analysis/
+*.pdf
