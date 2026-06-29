@@ -24,3 +24,4 @@ tof_runs_delays/
 pb_detscan_runs/
 pb_powerscan_runs/
 all_drivers.log
+*.pdf
