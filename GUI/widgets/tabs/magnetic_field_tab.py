@@ -1,7 +1,16 @@
 import inspect
+import json
+from pathlib import Path
 
 from PyQt5.QtCore import QLocale
-from PyQt5.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QLabel
+from PyQt5.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+)
 
 import src.magnetic_field as magnetic_field
 from GUI.widgets.common.bar_dipole_table import BarDipolesTable
@@ -273,3 +282,99 @@ class MagneticFieldSettingsTab(SettingsTab):
                     "dipoles",
                 )
             )
+            self._add_reference_button(field_type, table)
+
+        elif field_type == "GridFieldModel":
+            grid_edit = QLineEdit()
+            grid_edit.setMaximumWidth(280)
+            grid_edit.setText(
+                str(
+                    self._model.safe_get(
+                        "Magnetic_Fields",
+                        "grid_file",
+                        default="field_grids/dipolebar_grid.npz",
+                    )
+                )
+            )
+            grid_edit.textChanged.connect(
+                lambda t: self._update_model("grid_file", t)
+            )
+            self.layout.addRow(QLabel("Grid file (.npz):"), grid_edit)
+            self._field_widgets.append(
+                (
+                    self.layout.itemAt(
+                        self.layout.rowCount() - 1, QFormLayout.LabelRole
+                    ),
+                    self.layout.itemAt(
+                        self.layout.rowCount() - 1, QFormLayout.FieldRole
+                    ),
+                    "grid_file",
+                )
+            )
+            label = QLabel("Fallback bars:")
+            table = BarDipolesTable(self._model, parent=self)
+            self.layout.addRow(label, table)
+            self._field_widgets.append(
+                (
+                    self.layout.itemAt(
+                        self.layout.rowCount() - 1, QFormLayout.LabelRole
+                    ),
+                    self.layout.itemAt(
+                        self.layout.rowCount() - 1, QFormLayout.FieldRole
+                    ),
+                    "dipoles",
+                )
+            )
+            add_vector_param(
+                key="center_offset",
+                text="Center offset (mm):",
+                default=[0.0, 0.0, 0.0],
+            )
+            self._add_reference_button(field_type, table)
+
+    def _add_reference_button(self, field_type, table) -> None:
+        """Button that loads the reference field geometry for this type."""
+        btn = QPushButton("Load reference geometry")
+        btn.clicked.connect(
+            lambda _=False, ft=field_type, tbl=table: (
+                self._load_reference_geometry(ft, tbl)
+            )
+        )
+        self.layout.addRow(QLabel("Reference:"), btn)
+        self._field_widgets.append(
+            (
+                self.layout.itemAt(
+                    self.layout.rowCount() - 1, QFormLayout.LabelRole
+                ),
+                self.layout.itemAt(
+                    self.layout.rowCount() - 1, QFormLayout.FieldRole
+                ),
+                "reference_button",
+            )
+        )
+
+    def _load_reference_geometry(self, field_type, table) -> None:
+        """Load reference bars from GUI/defaults/magnets/<type>_field_default.json."""
+        fname = {
+            "DipoleBarMagneticField": "dipolebar_field_default.json",
+            "CuboidBarMagneticField": "cuboidbar_field_default.json",
+            "GridFieldModel": "cuboidbar_field_default.json",
+        }.get(field_type)
+        if fname is None:
+            return
+        path = (
+            Path(__file__).resolve().parents[2]
+            / "defaults"
+            / "magnets"
+            / fname
+        )
+        try:
+            with open(path) as f:
+                ref = json.load(f)
+        except (OSError, ValueError):
+            return
+        if "dipoles" in ref:
+            self._update_model("dipoles", ref["dipoles"])
+        if "center_offset" in ref:
+            self._update_model("center_offset", ref["center_offset"])
+        table.setModel(self._model)
