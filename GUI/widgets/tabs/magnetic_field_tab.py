@@ -251,8 +251,15 @@ class MagneticFieldSettingsTab(SettingsTab):
                 step=1e-5,
             )
 
-        elif field_type == "DipoleBarMagneticField":
-            label = QLabel("Bar-Dipoles:")
+        elif field_type in (
+            "DipoleBarMagneticField",
+            "CuboidBarMagneticField",
+        ):
+            label = QLabel(
+                "Bar-Dipoles (cuboid):"
+                if field_type == "CuboidBarMagneticField"
+                else "Bar-Dipoles:"
+            )
             table = BarDipolesTable(self._model, parent=self)
             self.layout.addRow(label, table)
             self._field_widgets.append(

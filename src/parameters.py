@@ -35,6 +35,7 @@ import src.atoms as atoms
 import src.interactions as interactions
 from src.lasers import LaserComponent
 from src.magnetic_field import (
+    CuboidBarMagneticField,
     DipoleBarMagneticField,
     EllipticalMagneticField,
     IdealQuadrupoleField,
@@ -317,7 +318,10 @@ class Parameters:
             self.g_z = -(self.g_x + self.g_y)
             self.theta_deg = field_data["theta_deg"]
 
-        elif self.magnetic_field_type == "DipoleBarMagneticField":
+        elif self.magnetic_field_type in (
+            "DipoleBarMagneticField",
+            "CuboidBarMagneticField",
+        ):
             self.dipoles = []
             for dipole in field_data["dipoles"]:
                 self.dipoles.append(
@@ -733,6 +737,17 @@ class Parameters:
             )
         elif t == "DipoleBarMagneticField":
             B_field = DipoleBarMagneticField(len(self.dipoles))
+            for idx, dip in enumerate(self.dipoles):
+                B_field.add_dipole(
+                    idx,
+                    dip["position"],
+                    dip["dimension"],
+                    dip["orientation"],
+                    dip["magnetization"],
+                )
+            return B_field
+        elif t == "CuboidBarMagneticField":
+            B_field = CuboidBarMagneticField(len(self.dipoles))
             for idx, dip in enumerate(self.dipoles):
                 B_field.add_dipole(
                     idx,

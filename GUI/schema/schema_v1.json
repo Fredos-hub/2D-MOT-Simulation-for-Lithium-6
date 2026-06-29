@@ -103,6 +103,34 @@
       },
 
       {
+        "if": { "properties": { "type": { "const": "CuboidBarMagneticField" } } },
+        "then": {
+          "type": "object",
+          "properties": {
+            "type": { "const": "CuboidBarMagneticField" },
+            "center_offset": { "$ref": "#/definitions/vector3" },
+            "dipoles": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["position", "dimension", "orientation", "magnetization"],
+                "properties": {
+                  "position": { "$ref": "#/definitions/vector3" },
+                  "dimension": { "$ref": "#/definitions/vector3" },
+                  "orientation": { "$ref": "#/definitions/vector3" },
+                  "magnetization": { "type": "number" }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["type", "dipoles"],
+          "additionalProperties": false
+        }
+      },
+
+      {
         "if": { "properties": { "type": { "const": "IdealQuadrupoleField" } } },
         "then": {
           "type": "object",

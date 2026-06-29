@@ -311,6 +311,132 @@ class DipoleBarMagneticField:
         return max_time_step
 
 
+# Cuboid-Bar Magnetic Field (exact closed-form, no interpolation error)
+cuboid_spec = [
+    ("n_bars", int32),
+    ("positions", float64[:, :]),  # (n_bars,3) bar centers, m
+    ("half_extents", float64[:, :]),  # (n_bars,3) = dimension/2 along lab x,y,z
+    ("mag_axis", int32[:]),  # lab axis (0/1/2) the magnetization points along
+    ("mag_signed", float64[:]),  # signed magnetization magnitude (A/m)
+    ("mu0_over_4pi", float64),
+]
+
+
+@jitclass(cuboid_spec)
+class CuboidBarMagneticField:
+    """Exact field of uniformly-magnetized rectangular bars (surface-charge form).
+
+    Same geometry input as DipoleBarMagneticField, but evaluates the exact
+    closed-form cuboid field instead of the point-dipole approximation. The
+    component carrying the atan2 term is the bar's magnetization axis; the two
+    transverse components carry log terms (axis-aligned ±x/±y/±z magnetization).
+    """
+
+    def __init__(self, n_bars):
+        self.n_bars = n_bars
+        self.positions = np.zeros((n_bars, 3), dtype=np.float64)
+        self.half_extents = np.zeros((n_bars, 3), dtype=np.float64)
+        self.mag_axis = np.zeros(n_bars, dtype=np.int32)
+        self.mag_signed = np.zeros(n_bars, dtype=np.float64)
+        self.mu0_over_4pi = 1e-7
+
+    def add_dipole(self, idx, position, dimension, orientation, magnetization):
+        """Store one bar's geometry; magnetization must be axis-aligned (±x/±y/±z)."""
+        self.positions[idx] = position
+        self.half_extents[idx] = dimension * 0.5
+
+        ox = abs(orientation[0])
+        oy = abs(orientation[1])
+        oz = abs(orientation[2])
+        if ox >= oy and ox >= oz:
+            axis = 0
+        elif oy >= oz:
+            axis = 1
+        else:
+            axis = 2
+        self.mag_axis[idx] = axis
+        sign = 1.0 if orientation[axis] >= 0.0 else -1.0
+        self.mag_signed[idx] = sign * magnetization
+
+    def calculate_magnetic_field(self, simulation_atoms, atom_id):
+        """Update one atom's field vector and magnitude (Tesla), written in place."""
+        calculate_cuboid_bar_field(
+            self.n_bars,
+            self.positions,
+            self.half_extents,
+            self.mag_axis,
+            self.mag_signed,
+            self.mu0_over_4pi,
+            simulation_atoms,
+            atom_id,
+        )
+
+    def field_at_positions(self, positions):
+        """Vectorized B (Tesla) and |B| at (N,3) positions, for offline plotting."""
+        n = positions.shape[0]
+        B = np.zeros((n, 3), dtype=np.float64)
+        norm = np.zeros(n, dtype=np.float64)
+        for p in range(n):
+            bx, by, bz = _cuboid_field_one_point(
+                self.n_bars,
+                self.positions,
+                self.half_extents,
+                self.mag_axis,
+                self.mag_signed,
+                self.mu0_over_4pi,
+                positions[p, 0],
+                positions[p, 1],
+                positions[p, 2],
+            )
+            B[p, 0] = bx
+            B[p, 1] = by
+            B[p, 2] = bz
+            norm[p] = math.sqrt(bx * bx + by * by + bz * bz)
+        return B, norm
+
+    # The step/time helpers are field-magnitude-driven and identical to the
+    # dipole-bar model (Don't-Hand-Roll): reuse them verbatim.
+    def calculate_max_step_length(
+        self, simulation_atoms, atom_id: np.ndarray
+    ) -> None:
+        """Set the adaptive max step length for the atoms from the local field."""
+        B = simulation_atoms.magnetic_field_strength[atom_id]
+
+        if B >= _B_COARSE:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+        elif B >= _B_MID:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+        elif B >= _B_FINE:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-5
+        else:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-6
+
+        return
+
+    def calculate_mean_free_path(self, mean_excitation_time, atom_velocity):
+        """Approximate mean free path between excitation events, in m."""
+        mean_free_path = mean_excitation_time * math.sqrt(
+            atom_velocity[0] ** 2
+            + atom_velocity[1] ** 2
+            + atom_velocity[2] ** 2
+        )
+
+        return mean_free_path
+
+    def calculate_max_time_step(self, max_step_length, atom_velocity):
+        """Largest time step keeping the atom within max_step_length, in s."""
+        max_time_step = max_step_length / (
+            math.sqrt(
+                atom_velocity[0] ** 2
+                + atom_velocity[1] ** 2
+                + atom_velocity[2] ** 2
+            )
+            + 1e-12
+        )
+
+        return max_time_step
+
+
 # NUMBA SPEC
 elliptical_spec = [
     ("g_x", float64),  # gradient along principal x' (units: T/m)
@@ -589,6 +715,118 @@ def calculate_bar_dipole_field(
         By += factor * (3.0 * uy * m_dot_u - my)
         Bz += factor * (3.0 * uz * m_dot_u - mz)
 
+    atoms.magnetic_field_vectors[atom_id, 0] = Bx
+    atoms.magnetic_field_vectors[atom_id, 1] = By
+    atoms.magnetic_field_vectors[atom_id, 2] = Bz
+    atoms.magnetic_field_strength[atom_id] = math.sqrt(
+        Bx * Bx + By * By + Bz * Bz
+    )
+
+
+# Small denominator guard for the cuboid log terms (mirrors the r2<1e-24 dipole
+# guard). Capture-region atoms are cm from any bar face, so this only protects
+# the removable singularities on the magnet's coordinate planes.
+_CUBOID_EPS = 1e-30
+
+
+@njit
+def _cuboid_field_one_point(
+    n_bars,
+    positions,
+    half_extents,
+    mag_axis,
+    mag_signed,
+    mu0_over_4pi,
+    rx,
+    ry,
+    rz,
+):
+    """Exact B (Tesla) at one point from all bars (surface-charge closed form)."""
+    Bx = 0.0
+    By = 0.0
+    Bz = 0.0
+    for d in range(n_bars):
+        x0 = rx - positions[d, 0]
+        y0 = ry - positions[d, 1]
+        z0 = rz - positions[d, 2]
+        a = half_extents[d, 0]
+        b = half_extents[d, 1]
+        c = half_extents[d, 2]
+        axis = mag_axis[d]
+        pref = mu0_over_4pi * mag_signed[d]
+
+        sx = 0.0
+        sy = 0.0
+        sz = 0.0
+        for i in range(2):
+            X = x0 - (1.0 - 2.0 * i) * a
+            for j in range(2):
+                Y = y0 - (1.0 - 2.0 * j) * b
+                for k in range(2):
+                    Z = z0 - (1.0 - 2.0 * k) * c
+                    sign = 1.0 - 2.0 * ((i + j + k) & 1)
+                    R = math.sqrt(X * X + Y * Y + Z * Z)
+                    # Magnetization-axis component carries the atan2 term; the two
+                    # transverse output components carry the log of the *other*
+                    # transverse coordinate. Signs/pairing pinned vs the offline
+                    # reference oracle (A1).
+                    if axis == 0:
+                        fx = math.atan2(Y * Z, X * R)
+                        fy = 0.5 * math.log(
+                            (R - Z + _CUBOID_EPS) / (R + Z + _CUBOID_EPS)
+                        )
+                        fz = 0.5 * math.log(
+                            (R - Y + _CUBOID_EPS) / (R + Y + _CUBOID_EPS)
+                        )
+                    elif axis == 1:
+                        fx = 0.5 * math.log(
+                            (R - Z + _CUBOID_EPS) / (R + Z + _CUBOID_EPS)
+                        )
+                        fy = math.atan2(X * Z, Y * R)
+                        fz = 0.5 * math.log(
+                            (R - X + _CUBOID_EPS) / (R + X + _CUBOID_EPS)
+                        )
+                    else:
+                        fx = 0.5 * math.log(
+                            (R - Y + _CUBOID_EPS) / (R + Y + _CUBOID_EPS)
+                        )
+                        fy = 0.5 * math.log(
+                            (R - X + _CUBOID_EPS) / (R + X + _CUBOID_EPS)
+                        )
+                        fz = math.atan2(X * Y, Z * R)
+                    sx += sign * fx
+                    sy += sign * fy
+                    sz += sign * fz
+        Bx += pref * sx
+        By += pref * sy
+        Bz += pref * sz
+    return Bx, By, Bz
+
+
+@njit
+def calculate_cuboid_bar_field(
+    n_bars,
+    positions,
+    half_extents,
+    mag_axis,
+    mag_signed,
+    mu0_over_4pi,
+    atoms: ECSAtoms,
+    atom_id,
+):
+    """Write the exact cuboid-bar field (Tesla) into one atom, in place."""
+    rx, ry, rz = atoms.positions[atom_id]
+    Bx, By, Bz = _cuboid_field_one_point(
+        n_bars,
+        positions,
+        half_extents,
+        mag_axis,
+        mag_signed,
+        mu0_over_4pi,
+        rx,
+        ry,
+        rz,
+    )
     atoms.magnetic_field_vectors[atom_id, 0] = Bx
     atoms.magnetic_field_vectors[atom_id, 1] = By
     atoms.magnetic_field_vectors[atom_id, 2] = Bz

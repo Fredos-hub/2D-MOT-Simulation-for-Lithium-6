@@ -6,3 +6,5 @@ pandas
 pyqt5
 tqdm
 jsonschema>=4.0.0
+# offline/dev-only: grid generation + njit-cuboid cross-check. NEVER imported in src/ (kernel).
+magpylib>=5.2,<6
