@@ -1,5 +1,4 @@
-"""
-Parameters loader and simulation builder.
+"""Parameters loader and simulation builder.
 
 Purpose
 -------
@@ -24,33 +23,31 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-import scipy.constants as scc
 from jsonschema import Draft7Validator
 
+import src.atoms as atoms
 import src.interactions as interactions
+from src.lasers import LaserComponent
 from src.magnetic_field import (
-    ZeemanField,
-    IdealQuadrupoleField,
     DipoleBarMagneticField,
     EllipticalMagneticField,
+    IdealQuadrupoleField,
+    ZeemanField,
 )
 from src.simulate import Simulation
-import src.atoms as atoms
-from src.lasers import LaserComponent
 from util.simulation_typing import ECSAtoms, LightAtomInteraction
-
 
 StatusCallback = Optional[Callable[[str], None]]
 
 
 class SchemaValidationError(Exception):
-    """
-    Raised when JSON configuration fails schema validation.
+    """Raised when JSON configuration fails schema validation.
 
     Attributes
     ----------
@@ -59,24 +56,22 @@ class SchemaValidationError(Exception):
         display or logging.
     """
 
-    def __init__(self, errors: List[str]) -> None:
+    def __init__(self, errors: list[str]) -> None:
         self.errors = errors
         message = "\n".join(errors)
         super().__init__(message)
 
 
 class ParameterError(Exception):
-    """
-    Raised for fatal parameter or runtime construction errors after validation.
-    """
+    """Raised for fatal parameter or construction errors after validation."""
 
 
-def validate_against_schema(config: Dict[str, Any], schema_path: str) -> None:
-    """
-    Validate a configuration dictionary against a JSON schema.
+def validate_against_schema(config: dict[str, Any], schema_path: str) -> None:
+    """Validate a configuration dictionary against a JSON schema.
+
     Produces more informative messages for `oneOf` / `anyOf` failures by
-    walking the error context.
-    Raises SchemaValidationError with a deduplicated ordered list of messages.
+    walking the error context. Raises SchemaValidationError with a
+    deduplicated, ordered list of messages.
     """
     schema_file = Path(schema_path)
     if not schema_file.exists():
@@ -88,9 +83,9 @@ def validate_against_schema(config: Dict[str, Any], schema_path: str) -> None:
     validator = Draft7Validator(schema)
     errors = sorted(validator.iter_errors(config), key=lambda e: list(e.path))
 
-    messages: List[str] = []
+    messages: list[str] = []
 
-    def _flatten_error(err):
+    def _flatten_error(err) -> None:
         path = ".".join(map(str, err.absolute_path)) or "root"
         messages.append(f"{path}: {err.message}")
         for sub in getattr(err, "context", []):
@@ -101,7 +96,7 @@ def validate_against_schema(config: Dict[str, Any], schema_path: str) -> None:
         _flatten_error(err)
 
     seen = set()
-    out: List[str] = []
+    out: list[str] = []
     for m in messages:
         if m not in seen:
             seen.add(m)
@@ -112,8 +107,7 @@ def validate_against_schema(config: Dict[str, Any], schema_path: str) -> None:
 
 
 class Parameters:
-    """
-    Configuration container and simulation builder.
+    """Configuration container and simulation builder.
 
     Responsibilities
     ----------------
@@ -136,52 +130,52 @@ class Parameters:
         self.filename = filename
         self.schema_path = schema_path
         self.status_callback = status_callback
-        self.errors: List[str] = []
+        self.errors: list[str] = []
 
         self.valid: bool = True
-        self.parameters: Dict[str, Any] = {}
+        self.parameters: dict[str, Any] = {}
 
         # simulation fields
-        self.default_time_step: Optional[np.float64] = None
-        self.step_resolution: Optional[int] = None
-        self.simulated_time: Optional[float] = None
-        self.max_step_number: Optional[int] = None
-        self.interaction: Optional[str] = None
-        self.seed: Optional[int] = None
-        self.flux: Optional[float] = None
-        self.macro_particle_weight: Optional[float] = None
-        self.rate_mode: Optional[bool] = None
+        self.default_time_step: np.float64 | None = None
+        self.step_resolution: int | None = None
+        self.simulated_time: float | None = None
+        self.max_step_number: int | None = None
+        self.interaction: str | None = None
+        self.seed: int | None = None
+        self.flux: float | None = None
+        self.macro_particle_weight: float | None = None
+        self.rate_mode: bool | None = None
 
         # atoms
         self.random_emission: bool = False
-        self.atom_species: Optional[str] = None
-        self.atom_number: Optional[int] = None
-        self.natural_linewidth: Optional[float] = None
-        self.start_position: Optional[np.ndarray] = None
-        self.start_velocity: Optional[np.ndarray] = None
-        self.ground_states: Optional[int] = None
-        self.randomize_groundstates: Optional[bool] = None
-        self.sample_file: Optional[str] = None
-        self.sample_style: Optional[str] = None
+        self.atom_species: str | None = None
+        self.atom_number: int | None = None
+        self.natural_linewidth: float | None = None
+        self.start_position: np.ndarray | None = None
+        self.start_velocity: np.ndarray | None = None
+        self.ground_states: int | None = None
+        self.randomize_groundstates: bool | None = None
+        self.sample_file: str | None = None
+        self.sample_style: str | None = None
 
         # magnetic field
-        self.magnetic_field_type: Optional[str] = None
-        self.slower_length: Optional[float] = None
-        self.B_0: Optional[float] = None
-        self.B_bias: Optional[float] = None
-        self.delta_B: Optional[float] = None
-        self.delta_B_min: Optional[float] = None
-        self.field_gradient: Optional[float] = None
-        self.g_x: Optional[float] = None
-        self.g_y: Optional[float] = None
-        self.g_z: Optional[float] = None
-        self.theta_deg: Optional[float] = None
-        self.offset: Optional[np.ndarray] = None
-        self.dipoles: List[Dict[str, Any]] = []
+        self.magnetic_field_type: str | None = None
+        self.slower_length: float | None = None
+        self.B_0: float | None = None
+        self.B_bias: float | None = None
+        self.delta_B: float | None = None
+        self.delta_B_min: float | None = None
+        self.field_gradient: float | None = None
+        self.g_x: float | None = None
+        self.g_y: float | None = None
+        self.g_z: float | None = None
+        self.theta_deg: float | None = None
+        self.offset: np.ndarray | None = None
+        self.dipoles: list[dict[str, Any]] = []
 
         # lasers and boundaries
-        self.lasers: List[Dict[str, Any]] = []
-        self.boundaries: Optional[np.ndarray] = None
+        self.lasers: list[dict[str, Any]] = []
+        self.boundaries: np.ndarray | None = None
 
         self._call_status("Loading configuration file")
         try:
@@ -228,9 +222,7 @@ class Parameters:
 
         self._call_status("Configuration parsing completed")
 
-    # -------------------------
     # Internal utility methods
-    # -------------------------
     def _call_status(self, message: str) -> None:
         if self.status_callback:
             try:
@@ -238,26 +230,30 @@ class Parameters:
             except Exception:
                 pass
 
-    def _load_json_file(self, filename: str) -> Dict[str, Any]:
+    def _load_json_file(self, filename: str) -> dict[str, Any]:
         path = Path(filename)
         if not path.exists():
-            raise FileNotFoundError(f"Configuration file not found at {filename}")
+            raise FileNotFoundError(
+                f"Configuration file not found at {filename}"
+            )
         try:
             with path.open("r", encoding="utf-8") as fh:
                 data = json.load(fh)
         except Exception as exc:
-            raise ParameterError(f"Failed to read JSON file {filename}: {exc}")
+            raise ParameterError(
+                f"Failed to read JSON file {filename}: {exc}"
+            ) from exc
         return data
 
-    # -------------------------
     # Parsing helpers
-    # -------------------------
     def _parse_simulation(self) -> None:
         sim = self.parameters["Simulation"]
         self.default_time_step = np.float64(sim["default_time_step"] * 1e-6)
         self.step_resolution = int(sim["step_resolution"])
         self.simulated_time = float(sim["simulated_time"] * 1e-3)
-        self.max_step_number = round(self.simulated_time / self.default_time_step)
+        self.max_step_number = round(
+            self.simulated_time / self.default_time_step
+        )
         self.interaction = sim["interaction"]
         self.seed = int(sim["random_seed"])
         self.flux = float(sim["flux"] * 1e9)
@@ -267,16 +263,25 @@ class Parameters:
         # can continue past it to let pushed atoms reach the detector. <=0/absent
         # means inject for the whole simulation (backward-compatible).
         cutoff = sim.get("injection_cutoff_time", None)
-        self.injection_cutoff_time = (float(cutoff * 1e-3)
-                                      if cutoff and cutoff > 0 else self.simulated_time)
+        self.injection_cutoff_time = (
+            float(cutoff * 1e-3)
+            if cutoff and cutoff > 0
+            else self.simulated_time
+        )
 
     def _parse_atoms(self) -> None:
         atom_data = self.parameters["Atoms"]
         self.atom_species = atom_data["species"]
         self.atom_number = int(atom_data["number"])
-        self.natural_linewidth = float(atom_data["natural_linewidth"] * 1e6 * 2 * math.pi)
-        self.start_position = np.array(atom_data["start_position"], dtype=np.float64)
-        self.start_velocity = np.array(atom_data["start_velocity"], dtype=np.float64)
+        self.natural_linewidth = float(
+            atom_data["natural_linewidth"] * 1e6 * 2 * math.pi
+        )
+        self.start_position = np.array(
+            atom_data["start_position"], dtype=np.float64
+        )
+        self.start_velocity = np.array(
+            atom_data["start_velocity"], dtype=np.float64
+        )
 
         self.ground_states = int(atom_data["ground_state"])
         self.randomize_groundstates = bool(atom_data["randomize_ground_state"])
@@ -286,15 +291,20 @@ class Parameters:
     def _parse_magnetic_fields(self) -> None:
         field_data = self.parameters["Magnetic_Fields"]
         self.magnetic_field_type = field_data["type"]
-        self.offset = np.array(
-            field_data.get("center_offset", [0.0, 0.0, 0.0]),
-            dtype=np.float64,
-        ) * 1e-3
+        self.offset = (
+            np.array(
+                field_data.get("center_offset", [0.0, 0.0, 0.0]),
+                dtype=np.float64,
+            )
+            * 1e-3
+        )
 
         if self.magnetic_field_type == "ZeemanField":
             self.slower_length = field_data.get("slower_length", None)
             self.B_0 = field_data.get("B_0", None)
-            self.B_bias = field_data.get("B_bias", field_data.get("B_Bias", None))
+            self.B_bias = field_data.get(
+                "B_bias", field_data.get("B_Bias", None)
+            )
             self.delta_B = field_data.get("delta_B", 0.0) / 100.0
             self.delta_B_min = field_data.get("delta_B_min", 0.0)
 
@@ -312,67 +322,83 @@ class Parameters:
             for dipole in field_data["dipoles"]:
                 self.dipoles.append(
                     {
-                        "position": np.array(dipole["position"], dtype=np.float64),
-                        "dimension": np.array(dipole["dimension"], dtype=np.float64),
-                        "orientation": np.array(dipole["orientation"], dtype=np.float64),
+                        "position": np.array(
+                            dipole["position"], dtype=np.float64
+                        ),
+                        "dimension": np.array(
+                            dipole["dimension"], dtype=np.float64
+                        ),
+                        "orientation": np.array(
+                            dipole["orientation"], dtype=np.float64
+                        ),
                         "magnetization": float(dipole["magnetization"]),
                     }
                 )
         else:
-            raise ParameterError(f"Unsupported magnetic field type: {self.magnetic_field_type}")
+            raise ParameterError(
+                f"Unsupported magnetic field type: {self.magnetic_field_type}"
+            )
 
     def _parse_lasers(self) -> None:
         lasers = self.parameters["Lasers"]
-        parsed: List[Dict[str, Any]] = []
+        parsed: list[dict[str, Any]] = []
         for laser in lasers:
             parsed.append(
                 {
                     "waist": float(laser["waist"]),
                     "origin": np.array(laser["origin"], dtype=np.float64),
-                    "direction": np.array(laser["direction"], dtype=np.float64),
+                    "direction": np.array(
+                        laser["direction"], dtype=np.float64
+                    ),
                     "beam_power": float(laser["beam_power"]),
                     "beam_frequency": float(laser["beam_frequency"]) * 1e6,
-                    "detuning": float(laser["detuning"]) * self.natural_linewidth,
+                    "detuning": float(laser["detuning"])
+                    * self.natural_linewidth,
                     "handedness": int(laser["handedness"]),
                     "type": laser.get("type", "other"),
                     # active interval [t_on, t_off) in seconds; omitted/null t_off = always on
                     "t_on": float(laser.get("t_on", 0.0)) * 1e-3,
-                    "t_off": float(laser["t_off"]) * 1e-3 if laser.get("t_off") is not None else np.inf,
+                    "t_off": float(laser["t_off"]) * 1e-3
+                    if laser.get("t_off") is not None
+                    else np.inf,
                 }
             )
         for index, entry in enumerate(parsed):
             if entry["t_off"] <= entry["t_on"]:
-                self.errors.append(f"Laser #{index}: t_off must be greater than t_on.")
+                self.errors.append(
+                    f"Laser #{index}: t_off must be greater than t_on."
+                )
         self.lasers = parsed
 
     def _parse_boundaries(self) -> None:
         b = self.parameters["Boundaries"]
-        self.boundaries = np.array(
-            [b["x_limit"], b["y_limit"], b["z_limit"]],
-            dtype=np.float64,
-        ) * 1e-3
+        self.boundaries = (
+            np.array(
+                [b["x_limit"], b["y_limit"], b["z_limit"]],
+                dtype=np.float64,
+            )
+            * 1e-3
+        )
 
-    # -------------------------
     # Build simulation
-    # -------------------------
     def build_simulation(self) -> Simulation:
-        """
-        Create a Simulation instance from parsed parameters.
-        """
+        """Create a Simulation instance from parsed parameters."""
         rng = np.random.default_rng(seed=self.seed)
 
         self._call_status("Initializing interaction")
         try:
             if not hasattr(interactions, self.interaction):
-                raise ParameterError(f"Interaction '{self.interaction}' not found in src.interactions")
+                raise ParameterError(
+                    f"Interaction '{self.interaction}' not found in src.interactions"
+                )
             interaction_cls = getattr(interactions, self.interaction)
             simulation_interaction: LightAtomInteraction = interaction_cls()
         except Exception as exc:
             msg = f"Failed to initialize interaction: {exc}"
             self._call_status(msg)
-            raise ParameterError(msg)
+            raise ParameterError(msg) from exc
 
-        sample_data: Optional[pd.DataFrame] = None
+        sample_data: pd.DataFrame | None = None
         if self.sample_file:
             try:
                 sample_data = pd.read_csv(self.sample_file)
@@ -408,7 +434,7 @@ class Parameters:
         except Exception as exc:
             msg = f"Failed to initialize atom starting conditions: {exc}"
             self._call_status(msg)
-            raise ParameterError(msg)
+            raise ParameterError(msg) from exc
 
         try:
             B_field = self._construct_magnetic_field()
@@ -416,7 +442,7 @@ class Parameters:
         except Exception as exc:
             msg = f"Failed to construct magnetic field: {exc}"
             self._call_status(msg)
-            raise ParameterError(msg)
+            raise ParameterError(msg) from exc
 
         mot_lasers = LaserComponent(len(self.lasers))
         for index, laser in enumerate(self.lasers):
@@ -447,28 +473,29 @@ class Parameters:
                 simulated_time=self.simulated_time,
                 boundaries=self.boundaries,
                 default_timestep=self.default_time_step,
-                laser_t_on=np.array([l["t_on"] for l in self.lasers], dtype=np.float64),
-                laser_t_off=np.array([l["t_off"] for l in self.lasers], dtype=np.float64),
+                laser_t_on=np.array(
+                    [l["t_on"] for l in self.lasers], dtype=np.float64
+                ),
+                laser_t_off=np.array(
+                    [l["t_off"] for l in self.lasers], dtype=np.float64
+                ),
             )
         except Exception as exc:
             msg = f"Failed to construct Simulation: {exc}"
             self._call_status(msg)
-            raise ParameterError(msg)
+            raise ParameterError(msg) from exc
 
         self._call_status("Simulation instance created")
         return simulation
 
-    # -------------------------
     # Helper functions for build
-    # -------------------------
     def _find_atom_number_and_start_time(
         self,
         rng: np.random.Generator,
-        sample_data: Optional[pd.DataFrame],
-        sample_style: Optional[str],
-    ) -> Tuple[int, np.ndarray]:
-        """
-        Return tuple (atom_number, start_times_array).
+        sample_data: pd.DataFrame | None,
+        sample_style: str | None,
+    ) -> tuple[int, np.ndarray]:
+        """Return tuple (atom_number, start_times_array).
 
         Cases:
         1) No sample file: use the values directly from the JSON.
@@ -479,7 +506,7 @@ class Parameters:
         if not self.sample_file or sample_data is None:
             if self.rate_mode:
                 rate = self.flux / self.macro_particle_weight
-                times: List[float] = []
+                times: list[float] = []
                 t = 0.0
                 while True:
                     dt = rng.exponential(1.0 / rate)
@@ -496,13 +523,15 @@ class Parameters:
             n_target = int(self.atom_number)
             n_file = len(sample_data)
             idx = rng.integers(0, n_file, size=n_target)
-            subj = sample_data["subjective_time"].to_numpy(dtype=np.float64)[idx]
+            subj = sample_data["subjective_time"].to_numpy(dtype=np.float64)[
+                idx
+            ]
             return n_target, subj
 
         # oven-style sample file path: keep existing behavior
         if self.rate_mode:
             rate = self.flux / self.macro_particle_weight
-            times: List[float] = []
+            times: list[float] = []
             t = 0.0
             while True:
                 dt = rng.exponential(1.0 / rate)
@@ -518,17 +547,25 @@ class Parameters:
     def _initialize_atoms_from_sample_or_defaults(
         self,
         simulation_atoms: ECSAtoms,
-        sample_data: Optional[pd.DataFrame],
+        sample_data: pd.DataFrame | None,
         start_times: np.ndarray,
         rng: np.random.Generator,
         simulation_interaction: LightAtomInteraction,
     ) -> None:
         if sample_data is None or not self.sample_file:
-            self._initialize_atoms_no_sample(simulation_atoms, start_times, rng, simulation_interaction)
+            self._initialize_atoms_no_sample(
+                simulation_atoms, start_times, rng, simulation_interaction
+            )
         elif self.sample_style == "snapshot":
             self._initialize_atoms_snapshot(simulation_atoms, sample_data, rng)
         else:
-            self._initialize_atoms_oven(simulation_atoms, sample_data, start_times, rng, simulation_interaction)
+            self._initialize_atoms_oven(
+                simulation_atoms,
+                sample_data,
+                start_times,
+                rng,
+                simulation_interaction,
+            )
 
     def _initialize_atoms_no_sample(
         self,
@@ -564,7 +601,9 @@ class Parameters:
             vel = direction * target_speed
 
             if "current_groundstate" in sample_hot.columns:
-                gs = sample_hot["current_groundstate"].to_numpy(dtype=np.int32)[idx]
+                gs = sample_hot["current_groundstate"].to_numpy(
+                    dtype=np.int32
+                )[idx]
             else:
                 n_gs = simulation_interaction.number_of_ground_states
                 gs = rng.integers(0, n_gs, size=N, dtype=np.int32)
@@ -599,7 +638,9 @@ class Parameters:
             sample_data[["x", "y", "z"]].to_numpy(dtype=np.float64)[idx]
         )
         sample_vel = np.ascontiguousarray(
-            sample_data[["velocity_x", "velocity_y", "velocity_z"]].to_numpy(dtype=np.float64)[idx]
+            sample_data[["velocity_x", "velocity_y", "velocity_z"]].to_numpy(
+                dtype=np.float64
+            )[idx]
         )
         sample_gs = np.ascontiguousarray(
             sample_data["current_groundstate"].to_numpy(dtype=np.int32)[idx]
@@ -609,7 +650,9 @@ class Parameters:
         )
         zero_times = np.zeros(N, dtype=np.float64)
 
-        simulation_atoms.set_starting_conditions(sample_pos, sample_vel, sample_gs, zero_times)
+        simulation_atoms.set_starting_conditions(
+            sample_pos, sample_vel, sample_gs, zero_times
+        )
         simulation_atoms.subjective_time[:] = subj
         simulation_atoms.time_overshoot[:] = 0.0
         write_atoms_to_csv(simulation_atoms, "snapshot_initial_conditions.csv")
@@ -624,12 +667,16 @@ class Parameters:
         simulation_interaction: LightAtomInteraction,
     ) -> None:
         N = simulation_atoms.n
-        subj = sample_data.get("subjective_time", pd.Series(0.0)).to_numpy(dtype=np.float64)
+        subj = sample_data.get("subjective_time", pd.Series(0.0)).to_numpy(
+            dtype=np.float64
+        )
         snapshot_flag = bool((subj != 0.0).any())
 
         if snapshot_flag:
             pos = sample_data[["x", "y", "z"]].to_numpy(dtype=np.float64)
-            vel = sample_data[["velocity_x", "velocity_y", "velocity_z"]].to_numpy(dtype=np.float64)
+            vel = sample_data[
+                ["velocity_x", "velocity_y", "velocity_z"]
+            ].to_numpy(dtype=np.float64)
 
             if "current_groundstate" not in sample_data.columns:
                 raise ParameterError(
@@ -641,7 +688,9 @@ class Parameters:
 
             simulation_atoms.set_starting_conditions(pos, vel, gs, zero_times)
             simulation_atoms.subjective_time[:] = subj
-            write_atoms_to_csv(simulation_atoms, "oven_snapshot_initial_conditions.csv")
+            write_atoms_to_csv(
+                simulation_atoms, "oven_snapshot_initial_conditions.csv"
+            )
             self._call_status("Snapshot initial conditions applied")
 
         else:
@@ -655,7 +704,9 @@ class Parameters:
             gs = rng.integers(0, n_gs, size=N, dtype=np.int32)
 
             simulation_atoms.set_starting_conditions(pos, vel, gs, start_times)
-            write_atoms_to_csv(simulation_atoms, "oven_snapshot_initial_conditions.csv")
+            write_atoms_to_csv(
+                simulation_atoms, "oven_snapshot_initial_conditions.csv"
+            )
             self._call_status("Atoms initialized from flux sample file")
 
     def _construct_magnetic_field(self):
@@ -669,7 +720,9 @@ class Parameters:
                 delta_B_min=self.delta_B_min,
             )
         elif t == "IdealQuadrupoleField":
-            return IdealQuadrupoleField(gradient=self.field_gradient, offset=self.offset)
+            return IdealQuadrupoleField(
+                gradient=self.field_gradient, offset=self.offset
+            )
         elif t == "EllipticalMagneticField":
             return EllipticalMagneticField(
                 g_x=self.g_x,
@@ -692,21 +745,24 @@ class Parameters:
         else:
             raise ParameterError(f"Unsupported magnetic field type: {t}")
 
-    # -------------------------
     # Persistence
-    # -------------------------
     def save_to_file(self, filename: str) -> None:
-        """
-        Write back the internal parameters dictionary to disk.
+        """Write back the internal parameters dictionary to disk.
 
         The method updates the Boundaries values from the internal numpy
         representation so that saved JSON reflects any in-memory changes.
         """
         if self.boundaries is not None:
             self.parameters.setdefault("Boundaries", {})
-            self.parameters["Boundaries"]["x_limit"] = float(self.boundaries[0] * 1e3)
-            self.parameters["Boundaries"]["y_limit"] = float(self.boundaries[1] * 1e3)
-            self.parameters["Boundaries"]["z_limit"] = float(self.boundaries[2] * 1e3)
+            self.parameters["Boundaries"]["x_limit"] = float(
+                self.boundaries[0] * 1e3
+            )
+            self.parameters["Boundaries"]["y_limit"] = float(
+                self.boundaries[1] * 1e3
+            )
+            self.parameters["Boundaries"]["z_limit"] = float(
+                self.boundaries[2] * 1e3
+            )
 
         path = Path(filename)
         try:
@@ -717,26 +773,30 @@ class Parameters:
             msg = f"Failed to save configuration to {filename}: {exc}"
             self.errors.append(msg)
             self._call_status(msg)
-            raise ParameterError(msg)
-        
-
+            raise ParameterError(msg) from exc
 
     def is_valid(self) -> bool:
-        """
-        Return True when validation and parsing completed successfully
-        and the object is ready to build a simulation.
+        """Return True when the parameters are valid and ready to build.
+
+        True only after validation and parsing completed successfully.
         """
         return getattr(self, "valid", False)
 
-    def get_errors(self) -> List[str]:
-        """
-        Return a copy of the current errors list suitable for display.
-        """
+    def get_errors(self) -> list[str]:
+        """Return a copy of the current errors list suitable for display."""
         return list(self.errors)
-    
 
 
-def write_atoms_to_csv(atoms, filename: str) -> None:
+def write_atoms_to_csv(atoms: ECSAtoms, filename: str) -> None:
+    """Write per-atom positions, velocities, and state to a CSV file.
+
+    Parameters
+    ----------
+    atoms : ECSAtoms
+        Atom container to serialize.
+    filename : str
+        Output CSV path.
+    """
     data = {
         "atom_id": atoms.atom_ids,
         "x": atoms.positions[:, 0],
@@ -748,6 +808,6 @@ def write_atoms_to_csv(atoms, filename: str) -> None:
         "current_groundstate": atoms.groundstates,
         "subjective_time": atoms.subjective_time,
         "time_overshoot": atoms.time_overshoot,
-        "status": atoms.status
+        "status": atoms.status,
     }
     pd.DataFrame(data).to_csv(filename, index=False)

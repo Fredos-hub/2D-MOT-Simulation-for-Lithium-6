@@ -2,32 +2,42 @@ from __future__ import annotations
 
 import json
 
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
-
-from PyQt5.QtWidgets import (
-    QWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QHBoxLayout, QVBoxLayout,
-    QLabel, QPushButton, QFileDialog, QLineEdit, QGroupBox, QComboBox, QCheckBox,
-    QDialog,
-)
-from PyQt5.QtCore import Qt, QLocale, QDir
-
-import matplotlib as mpl
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
+)
+from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar,
 )
 from matplotlib.figure import Figure
+from PyQt5.QtCore import QDir, QLocale, Qt
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from GUI.widgets.common.vector_input_widget import VectorInputWidget
 from src.spectrum_kernel import (
-    BeamConfig,
     ATOM_NATURAL_LINEWIDTH,
+    BeamConfig,
     build_interaction,
     build_magnetic_field,
     compute_spectrum_scan,
 )
-
 
 # LaTeX-like math rendering for plot text (Computer Modern serif).
 mpl.rcParams.setdefault("mathtext.fontset", "cm")
@@ -76,8 +86,13 @@ def gs_label(gs_idx: int, n_ground_states: int) -> str:
     return f"GS {int(gs_idx)}"
 
 
-def _style_axis(ax, *, title_size=VEL_TITLE_SIZE, label_size=VEL_LABEL_SIZE,
-                tick_size=VEL_TICK_SIZE):
+def _style_axis(
+    ax,
+    *,
+    title_size=VEL_TITLE_SIZE,
+    label_size=VEL_LABEL_SIZE,
+    tick_size=VEL_TICK_SIZE,
+) -> None:
     """Apply LaTeX-like font styling and font sizes to an axis."""
     ax.title.set_fontsize(title_size)
     ax.title.set_fontfamily(PLOT_FONT_FAMILY)
@@ -119,15 +134,19 @@ class SpectrumTab(QWidget):
     REQUIRED_FILE_COLUMNS = {
         "atom_id",
         "subjective_time",
-        "position_x", "position_y", "position_z",
-        "velocity_x", "velocity_y", "velocity_z",
+        "position_x",
+        "position_y",
+        "position_z",
+        "velocity_x",
+        "velocity_y",
+        "velocity_z",
         "excitation_count",
         "current_groundstate",
     }
 
     HELICITY_OPTIONS = ["-1", "0", "+1"]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
         self.file_df: pd.DataFrame | None = None
@@ -137,9 +156,9 @@ class SpectrumTab(QWidget):
         self._init_ui()
         self._refresh_ui_state()
 
-    # ------------------------------------------------------------------ UI
+    # UI
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
 
         upper_layout = QHBoxLayout()
@@ -186,12 +205,16 @@ class SpectrumTab(QWidget):
         self.bin_spin = QSpinBox()
         self.bin_spin.setRange(2, 1000)
         self.bin_spin.setValue(50)
-        self.bin_spin.valueChanged.connect(lambda *_: self._update_velocity_plots())
+        self.bin_spin.valueChanged.connect(
+            lambda *_: self._update_velocity_plots()
+        )
         form.addRow("Bin count:", self.bin_spin)
 
         self.exclude_states_edit = QLineEdit()
         self.exclude_states_edit.setPlaceholderText("e.g. 0,2")
-        self.exclude_states_edit.textChanged.connect(lambda *_: self._update_velocity_plots())
+        self.exclude_states_edit.textChanged.connect(
+            lambda *_: self._update_velocity_plots()
+        )
         form.addRow("Exclude states:", self.exclude_states_edit)
 
         return group
@@ -200,7 +223,9 @@ class SpectrumTab(QWidget):
         group = QGroupBox("Spectroscopy Beam")
         form = QFormLayout(group)
 
-        self.use_position_check = QCheckBox("Apply Gaussian beam profile at atom positions")
+        self.use_position_check = QCheckBox(
+            "Apply Gaussian beam profile at atom positions"
+        )
         self.use_position_check.setChecked(False)
         self.use_position_check.toggled.connect(self._on_use_position_toggled)
         form.addRow(self.use_position_check)
@@ -212,17 +237,29 @@ class SpectrumTab(QWidget):
         form.addRow("Direction:", self.beam_direction)
 
         self.beam_power_spin = self._make_double_spin(
-            suffix=" mW", decimals=3, vmin=0.0, vmax=1e6, value=1.0,
+            suffix=" mW",
+            decimals=3,
+            vmin=0.0,
+            vmax=1e6,
+            value=1.0,
         )
         form.addRow("Power:", self.beam_power_spin)
 
         self.beam_freq_spin = self._make_double_spin(
-            suffix=" MHz", decimals=3, vmin=0.0, vmax=1e12, value=446799571.079,
+            suffix=" MHz",
+            decimals=3,
+            vmin=0.0,
+            vmax=1e12,
+            value=446799571.079,
         )
         form.addRow("Frequency:", self.beam_freq_spin)
 
         self.beam_detuning_spin = self._make_double_spin(
-            suffix=" Γ", decimals=2, vmin=-1e6, vmax=1e6, value=0.0,
+            suffix=" Γ",
+            decimals=2,
+            vmin=-1e6,
+            vmax=1e6,
+            value=0.0,
         )
         form.addRow("Detuning:", self.beam_detuning_spin)
 
@@ -232,7 +269,11 @@ class SpectrumTab(QWidget):
         form.addRow("Handedness:", self.beam_handedness)
 
         self.beam_radius_spin = self._make_double_spin(
-            suffix=" mm", decimals=2, vmin=0.0, vmax=1e4, value=5.0,
+            suffix=" mm",
+            decimals=2,
+            vmin=0.0,
+            vmax=1e4,
+            value=5.0,
         )
         form.addRow("Radius (waist):", self.beam_radius_spin)
 
@@ -248,10 +289,18 @@ class SpectrumTab(QWidget):
         form = QFormLayout(group)
 
         self.scan_min_spin = self._make_double_spin(
-            suffix=" MHz", decimals=2, vmin=-1e6, vmax=1e6, value=-20.0,
+            suffix=" MHz",
+            decimals=2,
+            vmin=-1e6,
+            vmax=1e6,
+            value=-20.0,
         )
         self.scan_max_spin = self._make_double_spin(
-            suffix=" MHz", decimals=2, vmin=-1e6, vmax=1e6, value=20.0,
+            suffix=" MHz",
+            decimals=2,
+            vmin=-1e6,
+            vmax=1e6,
+            value=20.0,
         )
         form.addRow("Min:", self.scan_min_spin)
         form.addRow("Max:", self.scan_max_spin)
@@ -285,7 +334,10 @@ class SpectrumTab(QWidget):
         self.b_field_browse_btn = QPushButton("Browse…")
         self.b_field_browse_btn.setEnabled(False)
         self.b_field_browse_btn.clicked.connect(self._browse_b_field)
-        form.addRow("parameters.json:", self._hbox(self.b_field_line, self.b_field_browse_btn))
+        form.addRow(
+            "parameters.json:",
+            self._hbox(self.b_field_line, self.b_field_browse_btn),
+        )
 
         self.b_field_info_label = QLabel("No file loaded.")
         self.b_field_info_label.setWordWrap(True)
@@ -322,7 +374,9 @@ class SpectrumTab(QWidget):
         self.canvas.draw_idle()
         return widget
 
-    def _make_double_spin(self, suffix, decimals, vmin, vmax, value) -> QDoubleSpinBox:
+    def _make_double_spin(
+        self, suffix, decimals, vmin, vmax, value
+    ) -> QDoubleSpinBox:
         spin = QDoubleSpinBox()
         spin.setRange(vmin, vmax)
         spin.setDecimals(decimals)
@@ -331,15 +385,15 @@ class SpectrumTab(QWidget):
         spin.setValue(value)
         return spin
 
-    def _hbox(self, *widgets):
+    def _hbox(self, *widgets) -> QHBoxLayout:
         h = QHBoxLayout()
         for w in widgets:
             h.addWidget(w)
         return h
 
-    # ------------------------------------------------------------ snapshot
+    # snapshot
 
-    def _refresh_ui_state(self):
+    def _refresh_ui_state(self) -> None:
         has_file = self.file_df is not None and self.step_times_s.size > 0
         self.step_spin.setEnabled(has_file)
         self.bin_spin.setEnabled(has_file)
@@ -358,7 +412,7 @@ class SpectrumTab(QWidget):
             self.step_time_label.setText("0.000 ms")
             self._clear_plots()
 
-    def _browse_input(self):
+    def _browse_input(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Simulation Result", filter="CSV files (*.csv)"
         )
@@ -367,13 +421,15 @@ class SpectrumTab(QWidget):
             self.input_line.setText(rel)
             self._load_file_data(rel)
 
-    def _load_file_data(self, input_file: str):
+    def _load_file_data(self, input_file: str) -> None:
         try:
             df = pd.read_csv(input_file)
         except Exception as exc:
             self.file_df = None
             self.step_times_s = np.array([], dtype=float)
-            self.statusLabel.setText(f"Status: failed to read input file ({exc})")
+            self.statusLabel.setText(
+                f"Status: failed to read input file ({exc})"
+            )
             self._refresh_ui_state()
             return
 
@@ -389,18 +445,21 @@ class SpectrumTab(QWidget):
 
         self.file_df = df.copy()
         self.step_times_s = np.array(
-            sorted(self.file_df["subjective_time"].dropna().unique()), dtype=float
+            sorted(self.file_df["subjective_time"].dropna().unique()),
+            dtype=float,
         )
 
         if self.step_times_s.size == 0:
-            self.statusLabel.setText("Status: input file has no valid subjective_time values.")
+            self.statusLabel.setText(
+                "Status: input file has no valid subjective_time values."
+            )
         else:
             self.statusLabel.setText(
                 f"Status: loaded {len(df)} rows, {len(self.step_times_s)} steps."
             )
         self._refresh_ui_state()
 
-    def _on_step_changed(self, step: int):
+    def _on_step_changed(self, step: int) -> None:
         if self.step_times_s.size == 0:
             self.step_time_label.setText("0.000 ms")
             return
@@ -443,20 +502,22 @@ class SpectrumTab(QWidget):
         )
         excluded = self._parse_excluded_states()
         if excluded:
-            snapshot = snapshot[~snapshot["current_groundstate"].isin(excluded)]
+            snapshot = snapshot[
+                ~snapshot["current_groundstate"].isin(excluded)
+            ]
             if snapshot.empty:
                 return None
         return snapshot
 
-    # ---------------------------------------------------------------- plot
+    # plot
 
-    def _reset_axis_titles(self):
+    def _reset_axis_titles(self) -> None:
         self.axes[0, 0].set_title(r"$v_x$")
         self.axes[0, 1].set_title(r"$v_y$")
         self.axes[1, 0].set_title(r"$v_z$")
         self.axes[1, 1].set_title(r"$|v|$")
 
-    def _clear_plots(self):
+    def _clear_plots(self) -> None:
         for ax in self.axes.flat:
             ax.clear()
             ax.grid(True, alpha=0.25)
@@ -470,7 +531,7 @@ class SpectrumTab(QWidget):
         """Lab-frame elapsed time for a snapshot step: (step + 1) * dt."""
         return (int(step) + 1) * DEFAULT_DT_S
 
-    def _update_velocity_plots(self):
+    def _update_velocity_plots(self) -> None:
         snapshot = self._step_snapshot()
         if snapshot is None:
             self.export_snapshot_btn.setEnabled(False)
@@ -508,7 +569,7 @@ class SpectrumTab(QWidget):
         self.export_snapshot_btn.setEnabled(True)
         self.canvas.draw_idle()
 
-    def _plot_hist(self, ax, data: np.ndarray, bins: int, label: str):
+    def _plot_hist(self, ax, data: np.ndarray, bins: int, label: str) -> None:
         if data.size == 0:
             ax.set_title(f"{label} (empty)")
             _style_axis(ax)
@@ -519,9 +580,9 @@ class SpectrumTab(QWidget):
         ax.set_ylabel(r"Count")
         _style_axis(ax)
 
-    # ------------------------------------------------------ snapshot export
+    # snapshot export
 
-    def _export_snapshot_csv(self):
+    def _export_snapshot_csv(self) -> None:
         snapshot = self._step_snapshot()
         if snapshot is None:
             self.statusLabel.setText("Status: no snapshot to export.")
@@ -530,7 +591,8 @@ class SpectrumTab(QWidget):
         step = int(self.step_spin.value())
         time_ms = self._elapsed_time_s(step) * 1000.0
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export snapshot velocity data",
+            self,
+            "Export snapshot velocity data",
             f"velocity_snapshot_step{step}.csv",
             filter="CSV files (*.csv)",
         )
@@ -542,14 +604,18 @@ class SpectrumTab(QWidget):
         vz = snapshot["velocity_z"].to_numpy()
         v_abs = np.sqrt(vx**2 + vy**2 + vz**2)
 
-        out = pd.DataFrame({
-            "atom_id": snapshot["atom_id"].to_numpy(),
-            "current_groundstate": snapshot["current_groundstate"].to_numpy(),
-            "velocity_x": vx,
-            "velocity_y": vy,
-            "velocity_z": vz,
-            "velocity_abs": v_abs,
-        })
+        out = pd.DataFrame(
+            {
+                "atom_id": snapshot["atom_id"].to_numpy(),
+                "current_groundstate": snapshot[
+                    "current_groundstate"
+                ].to_numpy(),
+                "velocity_x": vx,
+                "velocity_y": vy,
+                "velocity_z": vz,
+                "velocity_abs": v_abs,
+            }
+        )
         out.attrs["step"] = step
         out.attrs["elapsed_time_ms"] = time_ms
         try:
@@ -557,21 +623,23 @@ class SpectrumTab(QWidget):
         except Exception as exc:
             self.statusLabel.setText(f"Status: failed to write CSV ({exc}).")
             return
-        self.statusLabel.setText(f"Status: snapshot exported ({len(out)} rows) → {path}")
+        self.statusLabel.setText(
+            f"Status: snapshot exported ({len(out)} rows) → {path}"
+        )
 
-    # ----------------------------------------------------- magnetic field
+    # magnetic field
 
-    def _on_use_position_toggled(self, checked: bool):
+    def _on_use_position_toggled(self, checked: bool) -> None:
         self.beam_origin.setEnabled(checked)
 
-    def _on_b_field_toggled(self, checked: bool):
+    def _on_b_field_toggled(self, checked: bool) -> None:
         self.b_field_line.setEnabled(checked)
         self.b_field_browse_btn.setEnabled(checked)
         if not checked:
             self.b_field_config = None
             self.b_field_info_label.setText("No file loaded.")
 
-    def _browse_b_field(self):
+    def _browse_b_field(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Open parameters.json", filter="JSON files (*.json)"
         )
@@ -581,9 +649,9 @@ class SpectrumTab(QWidget):
         self.b_field_line.setText(rel)
         self._load_b_field_config(path)
 
-    def _load_b_field_config(self, path: str):
+    def _load_b_field_config(self, path: str) -> None:
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as exc:
             self.b_field_config = None
@@ -593,14 +661,16 @@ class SpectrumTab(QWidget):
         b_block = data.get("Magnetic_Fields")
         if not isinstance(b_block, dict):
             self.b_field_config = None
-            self.b_field_info_label.setText("No 'Magnetic_Fields' block in file.")
+            self.b_field_info_label.setText(
+                "No 'Magnetic_Fields' block in file."
+            )
             return
 
         self.b_field_config = b_block
         b_type = b_block.get("type", "unknown")
         self.b_field_info_label.setText(f"Loaded B-field type: {b_type}")
 
-    # --------------------------------------------------------- compute stub
+    # compute stub
 
     def _read_vector(self, widget: VectorInputWidget) -> list[float]:
         out: list[float] = []
@@ -612,30 +682,39 @@ class SpectrumTab(QWidget):
                 out.append(0.0)
         return out
 
-    def _compute_spectrum(self):
+    def _compute_spectrum(self) -> None:
         """
         Run the steady-state frequency-scan and show the result in a popup.
         """
         snapshot = self._step_snapshot()
         if snapshot is None:
-            self.statusLabel.setText("Status: no snapshot available for the selected step.")
+            self.statusLabel.setText(
+                "Status: no snapshot available for the selected step."
+            )
             return
 
         scan_min = self.scan_min_spin.value()
         scan_max = self.scan_max_spin.value()
         if scan_min >= scan_max:
-            self.statusLabel.setText("Status: scan min must be strictly less than scan max.")
+            self.statusLabel.setText(
+                "Status: scan min must be strictly less than scan max."
+            )
             return
 
         n_bins = int(self.scan_bin_spin.value())
 
         use_position = self.use_position_check.isChecked()
         beam = BeamConfig(
-            origin_m=np.array(self._read_vector(self.beam_origin), dtype=np.float64),
-            direction=np.array(self._read_vector(self.beam_direction), dtype=np.float64),
+            origin_m=np.array(
+                self._read_vector(self.beam_origin), dtype=np.float64
+            ),
+            direction=np.array(
+                self._read_vector(self.beam_direction), dtype=np.float64
+            ),
             power_W=self.beam_power_spin.value() * 1e-3,
             frequency_Hz=self.beam_freq_spin.value() * 1e6,
-            detuning_offset_rad=self.beam_detuning_spin.value() * ATOM_NATURAL_LINEWIDTH,
+            detuning_offset_rad=self.beam_detuning_spin.value()
+            * ATOM_NATURAL_LINEWIDTH,
             handedness=int(self.beam_handedness.currentText()),
             radius_m=self.beam_radius_spin.value() * 1e-3,
             use_position=use_position,
@@ -649,20 +728,34 @@ class SpectrumTab(QWidget):
             return
 
         try:
-            interaction = build_interaction(self.interaction_combo.currentText())
+            interaction = build_interaction(
+                self.interaction_combo.currentText()
+            )
         except Exception as exc:
-            self.statusLabel.setText(f"Status: failed to build interaction ({exc}).")
+            self.statusLabel.setText(
+                f"Status: failed to build interaction ({exc})."
+            )
             return
 
         try:
-            mag_field = build_magnetic_field(self.b_field_config if use_b else None)
+            mag_field = build_magnetic_field(
+                self.b_field_config if use_b else None
+            )
         except Exception as exc:
-            self.statusLabel.setText(f"Status: failed to build magnetic field ({exc}).")
+            self.statusLabel.setText(
+                f"Status: failed to build magnetic field ({exc})."
+            )
             return
 
-        positions = snapshot[["position_x", "position_y", "position_z"]].to_numpy(dtype=np.float64)
-        velocities = snapshot[["velocity_x", "velocity_y", "velocity_z"]].to_numpy(dtype=np.float64)
-        ground_states = snapshot["current_groundstate"].to_numpy(dtype=np.int32)
+        positions = snapshot[
+            ["position_x", "position_y", "position_z"]
+        ].to_numpy(dtype=np.float64)
+        velocities = snapshot[
+            ["velocity_x", "velocity_y", "velocity_z"]
+        ].to_numpy(dtype=np.float64)
+        ground_states = snapshot["current_groundstate"].to_numpy(
+            dtype=np.int32
+        )
 
         detunings_MHz = np.linspace(scan_min, scan_max, n_bins)
         self.statusLabel.setText("Status: computing spectrum…")
@@ -678,7 +771,9 @@ class SpectrumTab(QWidget):
                 detunings_MHz=detunings_MHz,
             )
         except Exception as exc:
-            self.statusLabel.setText(f"Status: spectrum computation failed ({exc}).")
+            self.statusLabel.setText(
+                f"Status: spectrum computation failed ({exc})."
+            )
             self.compute_btn.setEnabled(True)
             return
         finally:
@@ -686,7 +781,9 @@ class SpectrumTab(QWidget):
 
         scale, y_label = self._scaling_for_total(result.rates, result.n_atoms)
         y_total = result.rates * scale
-        y_per_gs = result.rates_per_groundstate * scale  # same scaling so curves stack to total
+        y_per_gs = (
+            result.rates_per_groundstate * scale
+        )  # same scaling so curves stack to total
 
         time_ms = self._elapsed_time_s(self.step_spin.value()) * 1000.0
         excluded = self._parse_excluded_states()
@@ -708,14 +805,18 @@ class SpectrumTab(QWidget):
             title=title,
         )
         dlg.show()
-        self._last_spectrum_dialog = dlg  # keep reference so the non-modal dialog stays alive
+        self._last_spectrum_dialog = (
+            dlg  # keep reference so the non-modal dialog stays alive
+        )
 
         self.statusLabel.setText(
             f"Status: scan done — {result.n_atoms} atoms × {n_bins} points "
             f"({scan_min:.2f}…{scan_max:.2f} MHz)."
         )
 
-    def _scaling_for_total(self, rates: np.ndarray, n_atoms: int) -> tuple[float, str]:
+    def _scaling_for_total(
+        self, rates: np.ndarray, n_atoms: int
+    ) -> tuple[float, str]:
         """
         Choose a single scalar factor to scale the total rate (and apply the
         same factor to per-groundstate components so they stack to the total).
@@ -724,9 +825,13 @@ class SpectrumTab(QWidget):
         if mode == "Total rate (Hz)":
             return 1.0, "Total scattering rate (photons/s)"
         if mode == "Per atom (Hz)":
-            return 1.0 / max(n_atoms, 1), "Mean scattering rate per atom (photons/s)"
+            return 1.0 / max(
+                n_atoms, 1
+            ), "Mean scattering rate per atom (photons/s)"
         if mode == "Per atom / Γ":
-            return 1.0 / (max(n_atoms, 1) * ATOM_NATURAL_LINEWIDTH), "Mean scattering rate per atom / Γ"
+            return 1.0 / (
+                max(n_atoms, 1) * ATOM_NATURAL_LINEWIDTH
+            ), "Mean scattering rate per atom / Γ"
         if mode == "Normalized (peak = 1)":
             peak = float(np.max(rates))
             if peak <= 0.0:
@@ -749,7 +854,7 @@ class SpectrumDialog(QDialog):
         n_ground_states: int,
         y_label: str,
         title: str,
-    ):
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Spectrum")
         self.setModal(False)
@@ -787,8 +892,10 @@ class SpectrumDialog(QDialog):
             for k, gs in enumerate(self._groundstates):
                 lbl = gs_label(int(gs), self._n_ground_states)
                 ax.plot(
-                    x, self._y_per_gs[k],
-                    linewidth=1.2, alpha=0.85,
+                    x,
+                    self._y_per_gs[k],
+                    linewidth=1.2,
+                    alpha=0.85,
                     label=rf"{lbl}  ($N={int(self._counts_per_gs[k])}$)",
                 )
 
@@ -799,8 +906,12 @@ class SpectrumDialog(QDialog):
         ax.set_xlabel(r"Probe detuning (MHz)")
         ax.set_ylabel(y_label)
         ax.grid(True, alpha=0.25)
-        ax.legend(loc="best", fontsize=SPEC_LEGEND_SIZE, frameon=False,
-                  prop={"family": PLOT_FONT_FAMILY})
+        ax.legend(
+            loc="best",
+            fontsize=SPEC_LEGEND_SIZE,
+            frameon=False,
+            prop={"family": PLOT_FONT_FAMILY},
+        )
         _style_axis(
             ax,
             title_size=SPEC_TITLE_SIZE,
@@ -810,9 +921,11 @@ class SpectrumDialog(QDialog):
 
         canvas.draw_idle()
 
-    def _export_csv(self):
+    def _export_csv(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export spectrum data", "spectrum.csv",
+            self,
+            "Export spectrum data",
+            "spectrum.csv",
             filter="CSV files (*.csv)",
         )
         if not path:
@@ -821,7 +934,9 @@ class SpectrumDialog(QDialog):
         cols = {"detuning_MHz": self._x, "total": self._y_total}
         if self._y_per_gs is not None:
             for k, gs in enumerate(self._groundstates):
-                col_name = f"groundstate_{int(gs)}_N{int(self._counts_per_gs[k])}"
+                col_name = (
+                    f"groundstate_{int(gs)}_N{int(self._counts_per_gs[k])}"
+                )
                 cols[col_name] = self._y_per_gs[k]
         out = pd.DataFrame(cols)
         try:

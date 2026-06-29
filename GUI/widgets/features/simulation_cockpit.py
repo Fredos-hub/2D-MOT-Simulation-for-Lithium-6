@@ -1,25 +1,43 @@
-import os
 import json
-from pathlib import Path
-from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPlainTextEdit, QProgressBar,QGroupBox, 
-    QFileDialog, QInputDialog, QMessageBox,QSizePolicy, QStyledItemDelegate
-)
-from PyQt5.QtCore import Qt, pyqtSignal,QTimer, QRegularExpression
-from PyQt5.QtGui import QColor, QTextCursor, QSyntaxHighlighter, QTextCharFormat, QFont
-from GUI.widgets.common.file_table import FileTableWidget, FileSimState
-from GUI.widgets.tabs.settings_tabs import SettingsTabsWidget
-from GUI.models.file_model import FileModel
-from src.batch_worker import BatchSimulationWorker
-import src.batch_worker as batch_worker
-from src import checkpoint
+import os
 import re
+from pathlib import Path
+from typing import Any
+
 from jsonschema import Draft7Validator
+from PyQt5.QtCore import QRegularExpression, Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import (
+    QColor,
+    QFont,
+    QSyntaxHighlighter,
+    QTextCharFormat,
+)
+from PyQt5.QtWidgets import (
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
+    QSizePolicy,
+    QStyledItemDelegate,
+    QVBoxLayout,
+    QWidget,
+)
+
+import src.batch_worker as batch_worker
+from GUI.models.file_model import FileModel
+from GUI.widgets.common.file_table import FileSimState, FileTableWidget
+from GUI.widgets.tabs.settings_tabs import SettingsTabsWidget
+from src import checkpoint
+from src.batch_worker import BatchSimulationWorker
 
 schema_version = 1
 
-SCHEMA_PATH = os.path.join('GUI/schema', f'schema_v{str(schema_version)}.json')
+SCHEMA_PATH = os.path.join("GUI/schema", f"schema_v{str(schema_version)}.json")
+
 
 class LogHighlighter(QSyntaxHighlighter):
     """
@@ -28,7 +46,8 @@ class LogHighlighter(QSyntaxHighlighter):
       - WARNING: -> orange + bold
       - lines containing 'Building' -> green + bold + pale background (stands out)
     """
-    def __init__(self, document):
+
+    def __init__(self, document) -> None:
         super().__init__(document)
 
         # error format (red + bold)
@@ -50,11 +69,11 @@ class LogHighlighter(QSyntaxHighlighter):
 
         # Regexes
         # whole-line ERROR/WARNING
-        self.error_re = QRegularExpression(r'^(ERROR:.*)$')
-        self.warning_re = QRegularExpression(r'^(WARNING:.*)$')
+        self.error_re = QRegularExpression(r"^(ERROR:.*)$")
+        self.warning_re = QRegularExpression(r"^(WARNING:.*)$")
         # any line containing the word "Building" (case-sensitive to match your log)
         # matches strings like "---------------Building Tiecke_Setup.json (1/2)------------------"
-        self.building_re = QRegularExpression(r'.*\bBuilding\b.*')
+        self.building_re = QRegularExpression(r".*\bBuilding\b.*")
 
     def highlightBlock(self, text: str) -> None:
         # If it's a building line, highlight it first (so it visibly stands out).
@@ -85,28 +104,29 @@ class LogHighlighter(QSyntaxHighlighter):
             if start >= 0 and length > 0:
                 self.setFormat(start, length, self.warning_format)
 
+
 class AlignDelegate(QStyledItemDelegate):
-    def initStyleOption(self, option, index):
-        super(AlignDelegate, self).initStyleOption(option, index)
-        option.displayAlignment =  Qt.AlignCenter
+    def initStyleOption(self, option, index) -> None:
+        super().initStyleOption(option, index)
+        option.displayAlignment = Qt.AlignCenter
 
 
 class SimulationCockpit(QWidget):
-    fileDirtyChanged      = pyqtSignal(bool)
-    anyDirtyChanged       = pyqtSignal(bool)
-    simulationStateChanged = pyqtSignal(str)   # "idle" | "running" | "paused"
+    fileDirtyChanged = pyqtSignal(bool)
+    anyDirtyChanged = pyqtSignal(bool)
+    simulationStateChanged = pyqtSignal(str)  # "idle" | "running" | "paused"
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.opened_directory = None
         self.models = {}
         self.simulation_running_flag = False
         self.simulation_queue = []  # list of (row, filename)
         self.batch_worker = None
-        self._schema_cache = None   # parsed JSON schema, loaded once on demand
+        self._schema_cache = None  # parsed JSON schema, loaded once on demand
         self._init_ui()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
 
         # Middle: FileTable + Detail panel
@@ -132,7 +152,9 @@ class SimulationCockpit(QWidget):
         self.settingsLabel = QLabel("Settings")
         right_layout.addWidget(self.settingsLabel)
         self.settings_tabs = SettingsTabsWidget(self)
-        self.settings_tabs.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.settings_tabs.setSizePolicy(
+            QSizePolicy.Preferred, QSizePolicy.Expanding
+        )
         right_layout.addWidget(self.settings_tabs)
         interaction_layout.addWidget(right_side)
 
@@ -155,15 +177,27 @@ class SimulationCockpit(QWidget):
 
         # File-table signals
         self.fileTable.fileSelected.connect(self._on_file_selected)
-        self.fileTable.fileRenamed.connect(lambda original,new: self.loggingField.appendPlainText(f"Renamed {original}→{new}"))
-        self.fileTable.fileDeleted.connect(lambda filename: self.loggingField.appendPlainText(f"Deleted {filename}"))
-        self.fileTable.fileIgnored.connect(lambda filename,ign: self.loggingField.appendPlainText(f"{'Ignored' if ign else 'Unignored'} {filename}"))
+        self.fileTable.fileRenamed.connect(
+            lambda original, new: self.loggingField.appendPlainText(
+                f"Renamed {original}→{new}"
+            )
+        )
+        self.fileTable.fileDeleted.connect(
+            lambda filename: self.loggingField.appendPlainText(
+                f"Deleted {filename}"
+            )
+        )
+        self.fileTable.fileIgnored.connect(
+            lambda filename, ign: self.loggingField.appendPlainText(
+                f"{'Ignored' if ign else 'Unignored'} {filename}"
+            )
+        )
         self.fileTable.fileCopied.connect(self._on_file_copied)
         self.fileTable.openDiffRequested.connect(self._open_validation_dialog)
 
         self.setWindowTitle("Simulation Cockpit")
 
-    def _on_file_selected(self, filename):
+    def _on_file_selected(self, filename) -> None:
         self.settingsLabel.setText(f"Settings for: {filename}")
         model = self.models.get(filename)
         if model:
@@ -177,7 +211,7 @@ class SimulationCockpit(QWidget):
     def has_unsaved_changes(self) -> bool:
         return any(model.is_dirty() for model in self.models.values())
 
-    def stop_simulation_and_wait(self):
+    def stop_simulation_and_wait(self) -> None:
         """Stop the batch worker and block until its thread has finished."""
         if self.is_simulation_running():
             self.batch_worker.stop()
@@ -195,30 +229,42 @@ class SimulationCockpit(QWidget):
         """Load and cache the JSON schema; read from disk only once."""
         if self._schema_cache is None:
             try:
-                with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
+                with open(SCHEMA_PATH, encoding="utf-8") as f:
                     self._schema_cache = json.load(f)
             except Exception as e:
-                QMessageBox.critical(self, "Schema Load Error", f"Could not load JSON schema:\n{e}")
+                QMessageBox.critical(
+                    self,
+                    "Schema Load Error",
+                    f"Could not load JSON schema:\n{e}",
+                )
                 return None
         return self._schema_cache
 
-    def _register_model(self, name, model):
+    def _register_model(self, name, model) -> None:
         """Wire a FileModel's dirty signal into the table + cockpit, baseline it clean, and store it."""
-        model.dirtyChanged.connect(lambda dirty, filename=name: self.fileTable.update_status(filename, dirty))
-        model.dirtyChanged.connect(lambda dirty, filename=name: self._on_model_dirty(filename, dirty))
+        model.dirtyChanged.connect(
+            lambda dirty, filename=name: self.fileTable.update_status(
+                filename, dirty
+            )
+        )
+        model.dirtyChanged.connect(
+            lambda dirty, filename=name: self._on_model_dirty(filename, dirty)
+        )
         model.dirtyChanged.connect(self.fileDirtyChanged)
         model.mark_clean()
         self.models[name] = model
 
-    def _refresh_file_display(self, name, model):
+    def _refresh_file_display(self, name, model) -> None:
         """Push a model's current dirty + validation state into the table row."""
         self.fileTable.update_status(name, model.is_dirty())
         errors = self._validate_model(model)
         if errors is not None:
             self.fileTable.set_validation_status(name, errors)
 
-    def open_directory(self):
-        directory = QFileDialog.getExistingDirectory(self, "Select directory containing JSON files")
+    def open_directory(self) -> None:
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select directory containing JSON files"
+        )
         if not directory:
             return
         self.opened_directory = directory
@@ -233,12 +279,14 @@ class SimulationCockpit(QWidget):
             self._refresh_file_display(name, model)
         self._emit_any_dirty()
 
-    def _generate_skeleton_from_schema(self,
-                                    subschema: dict,
-                                    schema_root: dict = None,
-                                    external_defaults: dict = None,
-                                    path: list | None = None,
-                                    _depth: int = 0):
+    def _generate_skeleton_from_schema(
+        self,
+        subschema: dict,
+        schema_root: dict = None,
+        external_defaults: dict = None,
+        path: list | None = None,
+        _depth: int = 0,
+    ) -> Any:
         """
         Generate a skeleton value for the provided subschema.
 
@@ -250,7 +298,8 @@ class SimulationCockpit(QWidget):
         5. external_defaults (looked up by path), only if none of the above present
         6. type-based sensible fallback (object -> {}, array -> [], string -> "", integer -> minimum or 0, number -> minimum or 0.0, boolean -> False)
 
-        Parameters:
+        Parameters
+        ----------
         - subschema: the (sub-)schema to produce a value for
         - schema_root: full schema (used to resolve internal $ref). If None, subschema is treated as root.
         - external_defaults: nested dict of external defaults (optional). Will be consulted *after* schema defaults.
@@ -268,10 +317,10 @@ class SimulationCockpit(QWidget):
             path = []
 
         # helper: resolve internal $ref (only support '#/...' style)
-        def _resolve_ref(ref: str):
-            if not isinstance(ref, str) or not ref.startswith('#/'):
+        def _resolve_ref(ref: str) -> Any:
+            if not isinstance(ref, str) or not ref.startswith("#/"):
                 return None
-            parts = ref.lstrip('#/').split('/')
+            parts = ref.lstrip("#/").split("/")
             node = schema_root
             for p in parts:
                 if isinstance(node, dict) and p in node:
@@ -281,7 +330,7 @@ class SimulationCockpit(QWidget):
             return node
 
         # helper: lookup external defaults using the path; try exact path then nearest ancestor
-        def _external_lookup(ex_defaults, pth):
+        def _external_lookup(ex_defaults, pth) -> Any:
             if not ex_defaults:
                 return None
             # try exact
@@ -307,48 +356,72 @@ class SimulationCockpit(QWidget):
             return None
 
         # If there's a $ref: resolve and recurse (gives priority to referenced schema)
-        if '$ref' in subschema:
-            resolved = _resolve_ref(subschema['$ref'])
+        if "$ref" in subschema:
+            resolved = _resolve_ref(subschema["$ref"])
             if resolved is not None:
                 return self._generate_skeleton_from_schema(
-                    resolved, schema_root=schema_root,
+                    resolved,
+                    schema_root=schema_root,
                     external_defaults=external_defaults,
-                    path=path, _depth=_depth + 1
+                    path=path,
+                    _depth=_depth + 1,
                 )
             # unresolved $ref -> fallback to None
             return None
 
         # 1) const always wins
-        if 'const' in subschema:
-            return subschema['const']
+        if "const" in subschema:
+            return subschema["const"]
 
         # 2) prefer schema default (the change you asked for)
-        if 'default' in subschema:
-            return subschema['default']
+        if "default" in subschema:
+            return subschema["default"]
 
         # 3) enum -> pick first entry
-        if 'enum' in subschema and isinstance(subschema['enum'], list) and subschema['enum']:
-            return subschema['enum'][0]
+        if (
+            "enum" in subschema
+            and isinstance(subschema["enum"], list)
+            and subschema["enum"]
+        ):
+            return subschema["enum"][0]
 
         # 4) try examples
-        if 'examples' in subschema and isinstance(subschema['examples'], list) and subschema['examples']:
-            return subschema['examples'][0]
+        if (
+            "examples" in subschema
+            and isinstance(subschema["examples"], list)
+            and subschema["examples"]
+        ):
+            return subschema["examples"][0]
 
         # 5) handle oneOf / anyOf: prefer a branch with a default, else pick first branch
-        for comb in ('oneOf', 'anyOf'):
-            if comb in subschema and isinstance(subschema[comb], list) and subschema[comb]:
+        for comb in ("oneOf", "anyOf"):
+            if (
+                comb in subschema
+                and isinstance(subschema[comb], list)
+                and subschema[comb]
+            ):
                 # try to find first branch which has a default or const
                 for branch in subschema[comb]:
                     # Resolve $ref in branch if present for detection
                     b = branch
-                    if isinstance(branch, dict) and '$ref' in branch:
-                        resolved_b = _resolve_ref(branch['$ref'])
+                    if isinstance(branch, dict) and "$ref" in branch:
+                        resolved_b = _resolve_ref(branch["$ref"])
                         if resolved_b is not None:
                             b = resolved_b
-                    if isinstance(b, dict) and ('default' in b or 'const' in b):
-                        return self._generate_skeleton_from_schema(b, schema_root, external_defaults, path, _depth+1)
+                    if isinstance(b, dict) and (
+                        "default" in b or "const" in b
+                    ):
+                        return self._generate_skeleton_from_schema(
+                            b, schema_root, external_defaults, path, _depth + 1
+                        )
                 # else fallback to first branch
-                return self._generate_skeleton_from_schema(subschema[comb][0], schema_root, external_defaults, path, _depth+1)
+                return self._generate_skeleton_from_schema(
+                    subschema[comb][0],
+                    schema_root,
+                    external_defaults,
+                    path,
+                    _depth + 1,
+                )
 
         # If we reach here, no schema default/const/enum/examples were present.
         # Consult external defaults (if provided) BEFORE doing type fallbacks.
@@ -357,20 +430,20 @@ class SimulationCockpit(QWidget):
             return ext
 
         # Determine type (could be list) or infer from properties/items
-        t = subschema.get('type')
+        t = subschema.get("type")
         if isinstance(t, list) and t:
             t = t[0]
         if t is None:
-            if 'properties' in subschema:
-                t = 'object'
-            elif 'items' in subschema:
-                t = 'array'
+            if "properties" in subschema:
+                t = "object"
+            elif "items" in subschema:
+                t = "array"
 
         # Object handling
-        if t == 'object':
+        if t == "object":
             result = {}
-            props = subschema.get('properties', {})
-            required_props = set(subschema.get('required', []))
+            props = subschema.get("properties", {})
+            required_props = set(subschema.get("required", []))
             # If properties present, recuse for each property
             for prop_name, prop_schema in props.items():
                 result[prop_name] = self._generate_skeleton_from_schema(
@@ -378,7 +451,7 @@ class SimulationCockpit(QWidget):
                     schema_root=schema_root,
                     external_defaults=external_defaults,
                     path=path + [prop_name],
-                    _depth=_depth + 1
+                    _depth=_depth + 1,
                 )
             # ensure required props exist (even if not in properties)
             for req in required_props:
@@ -387,18 +460,21 @@ class SimulationCockpit(QWidget):
             return result
 
         # Array handling
-        if t == 'array':
-            items_schema = subschema.get('items')
-            min_items = int(subschema.get('minItems', 0))
+        if t == "array":
+            items_schema = subschema.get("items")
+            min_items = int(subschema.get("minItems", 0))
             # Decide how many to create:
             # - If minItems > 0: create that many
             # - If minItems == 0 but items_schema has a default/object/array -> create 1 element for UX
             create_count = min_items
             if create_count == 0 and items_schema:
                 # create 1 if item is object/array or has a default/const/enum/examples
-                if (isinstance(items_schema, dict) and (
-                        'default' in items_schema or 'const' in items_schema or 'enum' in items_schema or
-                        items_schema.get('type') in ('object', 'array'))):
+                if isinstance(items_schema, dict) and (
+                    "default" in items_schema
+                    or "const" in items_schema
+                    or "enum" in items_schema
+                    or items_schema.get("type") in ("object", "array")
+                ):
                     create_count = 1
             if create_count == 0:
                 return []
@@ -406,57 +482,60 @@ class SimulationCockpit(QWidget):
             if isinstance(items_schema, dict):
                 arr = []
                 for i in range(create_count):
-                    arr.append(self._generate_skeleton_from_schema(
-                        items_schema,
-                        schema_root=schema_root,
-                        external_defaults=external_defaults,
-                        path=path + [str(i)],
-                        _depth=_depth + 1
-                    ))
+                    arr.append(
+                        self._generate_skeleton_from_schema(
+                            items_schema,
+                            schema_root=schema_root,
+                            external_defaults=external_defaults,
+                            path=path + [str(i)],
+                            _depth=_depth + 1,
+                        )
+                    )
                 return arr
             elif isinstance(items_schema, list):
                 # tuple-style items (each position may have its own schema)
                 arr = []
                 for idx, itschema in enumerate(items_schema[:create_count]):
-                    arr.append(self._generate_skeleton_from_schema(
-                        itschema,
-                        schema_root=schema_root,
-                        external_defaults=external_defaults,
-                        path=path + [str(idx)],
-                        _depth=_depth + 1
-                    ))
+                    arr.append(
+                        self._generate_skeleton_from_schema(
+                            itschema,
+                            schema_root=schema_root,
+                            external_defaults=external_defaults,
+                            path=path + [str(idx)],
+                            _depth=_depth + 1,
+                        )
+                    )
                 return arr
             else:
                 return []
 
         # Primitives
-        if t == 'string':
+        if t == "string":
             return ""
 
-        if t == 'integer':
-            if 'minimum' in subschema:
+        if t == "integer":
+            if "minimum" in subschema:
                 try:
-                    return int(subschema['minimum'])
+                    return int(subschema["minimum"])
                 except Exception:
                     pass
             return 0
 
-        if t == 'number':
-            if 'minimum' in subschema:
+        if t == "number":
+            if "minimum" in subschema:
                 try:
-                    return float(subschema['minimum'])
+                    return float(subschema["minimum"])
                 except Exception:
                     pass
             return 0.0
 
-        if t == 'boolean':
+        if t == "boolean":
             return False
 
         # fallback
         return None
 
-
-    def create_new_file(self):
+    def create_new_file(self) -> None:
 
         self._check_unsaved()
 
@@ -477,16 +556,18 @@ class SimulationCockpit(QWidget):
         if not (ok and filename.strip()):
             return
         filename = filename.strip()
-        if not filename.lower().endswith('.json'):
-            filename += '.json'
+        if not filename.lower().endswith(".json"):
+            filename += ".json"
         new_path = os.path.join(self.opened_directory, filename)
 
         # 3) Overwrite check
         if os.path.exists(new_path):
             resp = QMessageBox.question(
-                self, "Overwrite?",
+                self,
+                "Overwrite?",
                 f"A file named '{filename}' already exists. Overwrite?",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
             )
             if resp != QMessageBox.Yes:
                 return
@@ -499,7 +580,7 @@ class SimulationCockpit(QWidget):
 
         # 5) Write the new file
         try:
-            with open(new_path, 'w') as f:
+            with open(new_path, "w") as f:
                 json.dump(skeleton, f, indent=2)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not write file:\n{e}")
@@ -515,8 +596,7 @@ class SimulationCockpit(QWidget):
         self.fileTable.refresh_table()
         self._refresh_file_display(new_name, model)
 
-
-    def save_file(self):
+    def save_file(self) -> None:
         row = self.fileTable.table.currentRow()
         if row < 0:
             return
@@ -528,21 +608,22 @@ class SimulationCockpit(QWidget):
             # re‐apply the clean highlight for this one row
             self.fileTable.update_status(filename, model.is_dirty())
         else:
-            self.loggingField.appendPlainText(f"No changes to save for {filename}")
+            self.loggingField.appendPlainText(
+                f"No changes to save for {filename}"
+            )
 
-
-    def save_all(self):
+    def save_all(self) -> None:
         count = 0
-        for filename, model in self.models.items():
+        for _filename, model in self.models.items():
             if model.is_dirty():
-                 model.save()
-                 count += 1
+                model.save()
+                count += 1
         self.loggingField.appendPlainText(f"Saved {count} file(s)")
         # re‐apply all statuses so the visuals match model states
         for filename, model in self.models.items():
             self.fileTable.update_status(filename, model.is_dirty())
 
-    def discard_changes(self):
+    def discard_changes(self) -> None:
         row = self.fileTable.table.currentRow()
         if row < 0:
             return
@@ -550,39 +631,47 @@ class SimulationCockpit(QWidget):
         model = self.models.get(filename)
         if model and model.is_dirty():
             model.reset()
-            self.loggingField.appendPlainText(f"Discarded changes to {filename}")
+            self.loggingField.appendPlainText(
+                f"Discarded changes to {filename}"
+            )
             # Reload the settings panel so it shows the restored values
-            current_label = self.settingsLabel.text().replace("Settings for: ", "")
+            current_label = self.settingsLabel.text().replace(
+                "Settings for: ", ""
+            )
             if filename == current_label:
                 self.settings_tabs.setModel(model)
             tbl = self.fileTable.table
             tbl.selectionModel().clearSelection()
             tbl.selectRow(row)
 
-    def discard_all_changes(self):
+    def discard_all_changes(self) -> None:
         current_label = self.settingsLabel.text().replace("Settings for: ", "")
         for filename, model in self.models.items():
             if model.is_dirty():
                 model.reset()
-                self.loggingField.appendPlainText(f"Discarded changes to {filename}")
+                self.loggingField.appendPlainText(
+                    f"Discarded changes to {filename}"
+                )
                 if filename == current_label:
                     self.settings_tabs.setModel(model)
         self.fileTable.table.selectionModel().clearSelection()
 
-
-
-    def run_simulation_from_file_table(self):
+    def run_simulation_from_file_table(self) -> None:
         if self.simulation_running_flag:
-            QMessageBox.warning(self, "Simulation", "Simulation already running.")
+            QMessageBox.warning(
+                self, "Simulation", "Simulation already running."
+            )
             return
 
         self._check_unsaved()
 
         # Build queue of filenames
         tbl = self.fileTable.table
-        self.simulation_queue = [tbl.item(r,0).text()
-                                 for r in range(tbl.rowCount())
-                                 if tbl.item(r,1).checkState() != Qt.Checked]
+        self.simulation_queue = [
+            tbl.item(r, 0).text()
+            for r in range(tbl.rowCount())
+            if tbl.item(r, 1).checkState() != Qt.Checked
+        ]
         if not self.simulation_queue:
             return
 
@@ -591,7 +680,9 @@ class SimulationCockpit(QWidget):
             self.fileTable.set_simulation_status(name, FileSimState.PENDING)
 
         # Start batch worker
-        self.batch_worker = BatchSimulationWorker(self.opened_directory, self.simulation_queue)
+        self.batch_worker = BatchSimulationWorker(
+            self.opened_directory, self.simulation_queue
+        )
         self.batch_worker.progressChanged.connect(self.progressBar.setValue)
         self.batch_worker.statusChanged.connect(self._on_status_update)
         self.batch_worker.fileStarted.connect(self._on_file_started)
@@ -601,14 +692,13 @@ class SimulationCockpit(QWidget):
         self.simulationStateChanged.emit("running")
         self.batch_worker.start()
 
-
-    def _on_file_started(self, filename: str, total_steps: int):
+    def _on_file_started(self, filename: str, total_steps: int) -> None:
         self.fileTable.set_simulation_status(filename, FileSimState.SIMULATING)
 
-    def _on_file_finished(self, filename: str):
+    def _on_file_finished(self, filename: str) -> None:
         self.fileTable.set_simulation_status(filename, FileSimState.DONE)
 
-    def _on_all_finished(self):
+    def _on_all_finished(self) -> None:
         for name in list(self.models.keys()):
             self.fileTable.set_simulation_status(name, None)
         self.progressBar.setValue(0)
@@ -618,10 +708,9 @@ class SimulationCockpit(QWidget):
             self.batch_worker = None
         self.simulationStateChanged.emit("idle")
 
-
-    def startCompilationAnimation(self):
+    def startCompilationAnimation(self) -> None:
         # If an animation timer already exists, try to stop and delete it.
-        if hasattr(self, 'compilingTimer') and self.compilingTimer is not None:
+        if hasattr(self, "compilingTimer") and self.compilingTimer is not None:
             try:
                 self.compilingTimer.stop()
                 self.compilingTimer.deleteLater()
@@ -636,16 +725,18 @@ class SimulationCockpit(QWidget):
         self.compilingTimer.start()
         self.isCompilingAnimationActive = True
 
-    def _update_compiling_status(self):
+    def _update_compiling_status(self) -> None:
         # Only update if the animation is active.
         if self.isCompilingAnimationActive:
             dots = "." * ((self.compilingAnimationStep % 3) + 1)
-            self.statusLabel.setText(f"Compiling{dots} (this may take a couple of minutes)")
+            self.statusLabel.setText(
+                f"Compiling{dots} (this may take a couple of minutes)"
+            )
             self.compilingAnimationStep += 1
 
-    def stopCompilationAnimation(self):
+    def stopCompilationAnimation(self) -> None:
         self.isCompilingAnimationActive = False
-        if hasattr(self, 'compilingTimer') and self.compilingTimer is not None:
+        if hasattr(self, "compilingTimer") and self.compilingTimer is not None:
             try:
                 self.compilingTimer.stop()
                 self.compilingTimer.deleteLater()
@@ -654,7 +745,7 @@ class SimulationCockpit(QWidget):
                 pass
             self.compilingTimer = None
 
-    def _on_status_update(self, status):
+    def _on_status_update(self, status) -> None:
         # Start/stop compilation animation
         if status == "Simulation instance created":
             self.startCompilationAnimation()
@@ -670,7 +761,7 @@ class SimulationCockpit(QWidget):
 
         if is_building:
             # blank line for separation (so each build stands out)
-            self.loggingField.appendPlainText("")  
+            self.loggingField.appendPlainText("")
 
         # keep skipping frequent "Processing step" lines
         if not status.startswith("Processing step"):
@@ -680,29 +771,28 @@ class SimulationCockpit(QWidget):
         v = self.loggingField.verticalScrollBar()
         v.setValue(v.maximum())
 
-
-    def logMessage(self, message: str):
+    def logMessage(self, message: str) -> None:
         """Append a message to the log box and optionally print to console."""
-        if hasattr(self, 'loggingField') and self.loggingField is not None:
+        if hasattr(self, "loggingField") and self.loggingField is not None:
             self.loggingField.appendPlainText(message)
         print(message)
 
-
-    def _check_unsaved(self):
+    def _check_unsaved(self) -> None:
         # Save or discard unsaved changes
-        dirty = [n for n,m in self.models.items() if m.is_dirty()]
+        dirty = [n for n, m in self.models.items() if m.is_dirty()]
         if dirty:
             resp = QMessageBox.question(
-                self, f"Unsaved Changes in {len(dirty)} files.",
-                "Save all changes?", QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel
+                self,
+                f"Unsaved Changes in {len(dirty)} files.",
+                "Save all changes?",
+                QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
             )
             if resp == QMessageBox.Cancel:
                 return
             if resp == QMessageBox.Save:
                 self.save_all()
 
-
-    def _on_model_dirty(self, filename, dirty):
+    def _on_model_dirty(self, filename, dirty) -> None:
         """
         Called when *any* model becomes dirty/clean.
         We always need to:
@@ -717,13 +807,12 @@ class SimulationCockpit(QWidget):
         if filename == current_label:
             self.fileDirtyChanged.emit(dirty)
 
-    def _emit_any_dirty(self):
+    def _emit_any_dirty(self) -> None:
         """Helper to recompute & emit whether at least one model is dirty."""
         any_dirty = any(m.is_dirty() for m in self.models.values())
         self.anyDirtyChanged.emit(any_dirty)
 
-
-    def _open_validation_dialog(self, filename: str):
+    def _open_validation_dialog(self, filename: str) -> None:
         model = self.models.get(filename)
         if model is None:
             return
@@ -731,25 +820,32 @@ class SimulationCockpit(QWidget):
         if schema is None:
             return
         from GUI.widgets.dialogs.validation_dialog import ValidationDiffDialog
+
         dlg = ValidationDiffDialog(model, schema, parent=self)
         dlg.exec_()
         # Re-validate and update status after dialog closes (user may have saved changes)
         self._refresh_file_display(filename, model)
 
-    def resume_from_checkpoint(self):
+    def resume_from_checkpoint(self) -> None:
         """Continue an interrupted run from its latest checkpoint (distinct from unpause)."""
         if self.simulation_running_flag:
-            QMessageBox.warning(self, "Simulation", "Simulation already running.")
+            QMessageBox.warning(
+                self, "Simulation", "Simulation already running."
+            )
             return
 
         checkpoint_dir = self._find_latest_resumable_checkpoint()
         if checkpoint_dir is None:
-            QMessageBox.information(self, "Resume run", "No resumable checkpoint found.")
+            QMessageBox.information(
+                self, "Resume run", "No resumable checkpoint found."
+            )
             return
 
         # Empty file list is intentional: the worker repopulates directory/file_names from the
         # checkpoint meta for whole-batch resume (D-07).
-        self.batch_worker = BatchSimulationWorker(self.opened_directory, [], resume_checkpoint_dir=checkpoint_dir)
+        self.batch_worker = BatchSimulationWorker(
+            self.opened_directory, [], resume_checkpoint_dir=checkpoint_dir
+        )
         self.batch_worker.progressChanged.connect(self.progressBar.setValue)
         self.batch_worker.statusChanged.connect(self._on_status_update)
         self.batch_worker.fileStarted.connect(self._on_file_started)
@@ -759,11 +855,14 @@ class SimulationCockpit(QWidget):
         self.simulationStateChanged.emit("running")
         self.batch_worker.start()
 
-    def _find_latest_resumable_checkpoint(self):
+    def _find_latest_resumable_checkpoint(self) -> str | None:
         """Scan simulation_results batch folders NEWEST-FIRST and return the first dir with a
         resumable checkpoint, or None. A later CLEAN batch deletes its own checkpoint (D-08),
-        so do not stop at the newest folder if it has none."""
-        results_root = os.path.join(batch_worker.REPO_ROOT, "simulation_results")
+        so do not stop at the newest folder if it has none.
+        """
+        results_root = os.path.join(
+            batch_worker.REPO_ROOT, "simulation_results"
+        )
         if not os.path.isdir(results_root):
             return None
         entries = []
@@ -771,7 +870,9 @@ class SimulationCockpit(QWidget):
             full = os.path.join(results_root, name)
             if not os.path.isdir(full):
                 continue
-            m = re.match(r"^(\d{2})_(\d{2})_(\d{2})_(\d+)$", name)  # DD_MM_YY_N
+            m = re.match(
+                r"^(\d{2})_(\d{2})_(\d{2})_(\d+)$", name
+            )  # DD_MM_YY_N
             if m:
                 dd, mm, yy, n = (int(g) for g in m.groups())
                 key = (yy, mm, dd, n)
@@ -789,17 +890,17 @@ class SimulationCockpit(QWidget):
         """True if a resumable checkpoint exists (used to gate the Resume-run action)."""
         return self._find_latest_resumable_checkpoint() is not None
 
-    def pause_simulation(self):
+    def pause_simulation(self) -> None:
         if self.batch_worker:
             self.batch_worker.pause()
             self.simulationStateChanged.emit("paused")
 
-    def resume_simulation(self):
+    def resume_simulation(self) -> None:
         if self.batch_worker:
             self.batch_worker.resume()
             self.simulationStateChanged.emit("running")
 
-    def cancel_simulation(self):
+    def cancel_simulation(self) -> None:
         if not self.batch_worker:
             return
         msg = QMessageBox(self)
@@ -812,9 +913,11 @@ class SimulationCockpit(QWidget):
             "Cancel all: stop everything, including remaining queued files.\n"
             "Continue: keep running."
         )
-        btn_current = msg.addButton("Cancel current", QMessageBox.DestructiveRole)
-        btn_all     = msg.addButton("Cancel all",     QMessageBox.DestructiveRole)
-        btn_keep    = msg.addButton("Continue",       QMessageBox.RejectRole)
+        btn_current = msg.addButton(
+            "Cancel current", QMessageBox.DestructiveRole
+        )
+        btn_all = msg.addButton("Cancel all", QMessageBox.DestructiveRole)
+        btn_keep = msg.addButton("Continue", QMessageBox.RejectRole)
         msg.setDefaultButton(btn_keep)
         msg.exec_()
         clicked = msg.clickedButton()
@@ -826,15 +929,12 @@ class SimulationCockpit(QWidget):
             self.batch_worker.stop()
             # _on_all_finished will emit "idle" once the thread finishes
 
-    def _on_file_copied(self, original_name: str, copy_name: str):
+    def _on_file_copied(self, original_name: str, copy_name: str) -> None:
         """After FileTable actually writes the new JSON copy on disk,
-        create a FileModel for it and register all the same signals."""
+        create a FileModel for it and register all the same signals.
+        """
         full_path = os.path.join(self.opened_directory, copy_name)
         model = FileModel(full_path)
         self._register_model(copy_name, model)
         self.fileTable.refresh_table()
         self._refresh_file_display(copy_name, model)
-
-
-
-                

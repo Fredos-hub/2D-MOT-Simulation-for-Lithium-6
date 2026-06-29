@@ -1,11 +1,21 @@
 import json
-from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QSplitter, QTreeWidget, QTreeWidgetItem,
-    QPlainTextEdit, QPushButton, QLabel, QMessageBox, QWidget
-)
+
+from jsonschema import Draft7Validator
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QFont, QTextCursor
-from jsonschema import Draft7Validator
+from PyQt5.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSplitter,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class ValidationDiffDialog(QDialog):
@@ -15,7 +25,7 @@ class ValidationDiffDialog(QDialog):
     Saving writes back through the model (marks it clean).
     """
 
-    def __init__(self, model, schema: dict, parent=None):
+    def __init__(self, model, schema: dict, parent=None) -> None:
         super().__init__(parent)
         self.model = model
         self.schema = schema
@@ -25,11 +35,9 @@ class ValidationDiffDialog(QDialog):
         self._setup_ui()
         self._load_from_model()
 
-    # ------------------------------------------------------------------
     # UI setup
-    # ------------------------------------------------------------------
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
 
         self.summaryLabel = QLabel("")
@@ -81,18 +89,16 @@ class ValidationDiffDialog(QDialog):
         self._timer.timeout.connect(self._revalidate)
         self.jsonEditor.textChanged.connect(self._timer.start)
 
-    # ------------------------------------------------------------------
     # Loading / validation
-    # ------------------------------------------------------------------
 
-    def _load_from_model(self):
+    def _load_from_model(self) -> None:
         text = json.dumps(self.model.data(), indent=2)
         self.jsonEditor.blockSignals(True)
         self.jsonEditor.setPlainText(text)
         self.jsonEditor.blockSignals(False)
         self._revalidate()
 
-    def _revalidate(self):
+    def _revalidate(self) -> None:
         self.errorTree.clear()
         text = self.jsonEditor.toPlainText()
 
@@ -100,7 +106,9 @@ class ValidationDiffDialog(QDialog):
             data = json.loads(text)
         except json.JSONDecodeError as e:
             self.summaryLabel.setText(f"⚠  JSON parse error: {e}")
-            self.summaryLabel.setStyleSheet("color: red; font-weight: bold; padding: 4px;")
+            self.summaryLabel.setStyleSheet(
+                "color: red; font-weight: bold; padding: 4px;"
+            )
             item = QTreeWidgetItem(["(parse error)", str(e), ""])
             item.setForeground(1, QColor("red"))
             self.errorTree.addTopLevelItem(item)
@@ -110,22 +118,30 @@ class ValidationDiffDialog(QDialog):
         self.saveBtn.setEnabled(True)
         errors = sorted(
             self.validator.iter_errors(data),
-            key=lambda e: list(e.absolute_path)
+            key=lambda e: list(e.absolute_path),
         )
 
         if not errors:
-            self.summaryLabel.setText("✓  No validation errors — file is valid")
-            self.summaryLabel.setStyleSheet("color: green; font-weight: bold; padding: 4px;")
+            self.summaryLabel.setText(
+                "✓  No validation errors — file is valid"
+            )
+            self.summaryLabel.setStyleSheet(
+                "color: green; font-weight: bold; padding: 4px;"
+            )
             item = QTreeWidgetItem(["", "✓  File matches schema", ""])
             item.setForeground(1, QColor("green"))
             self.errorTree.addTopLevelItem(item)
             return
 
         self.summaryLabel.setText(f"⚠  {len(errors)} validation error(s)")
-        self.summaryLabel.setStyleSheet("color: red; font-weight: bold; padding: 4px;")
+        self.summaryLabel.setStyleSheet(
+            "color: red; font-weight: bold; padding: 4px;"
+        )
 
         for err in errors:
-            path_str = " → ".join(str(p) for p in err.absolute_path) or "(root)"
+            path_str = (
+                " → ".join(str(p) for p in err.absolute_path) or "(root)"
+            )
             hint = self._build_hint(err)
             item = QTreeWidgetItem([path_str, err.message, hint])
             item.setForeground(0, QColor("#cc4400"))
@@ -136,7 +152,9 @@ class ValidationDiffDialog(QDialog):
     def _build_hint(self, err) -> str:
         if err.validator == "required":
             missing = err.message.split("'")[1] if "'" in err.message else ""
-            default = self._schema_default_for(list(err.absolute_path) + [missing])
+            default = self._schema_default_for(
+                list(err.absolute_path) + [missing]
+            )
             if default is not None:
                 return f'Add: "{missing}": {json.dumps(default)}'
             return f'Add missing field: "{missing}"'
@@ -167,11 +185,9 @@ class ValidationDiffDialog(QDialog):
                 return None
         return node.get("default") if isinstance(node, dict) else None
 
-    # ------------------------------------------------------------------
     # Interaction
-    # ------------------------------------------------------------------
 
-    def _on_error_clicked(self, item, _column):
+    def _on_error_clicked(self, item, _column) -> None:
         err = item.data(0, Qt.UserRole)
         if err is None:
             return
@@ -194,7 +210,7 @@ class ValidationDiffDialog(QDialog):
             self.jsonEditor.setFocus()
             self.jsonEditor.ensureCursorVisible()
 
-    def _format_json(self):
+    def _format_json(self) -> None:
         text = self.jsonEditor.toPlainText()
         try:
             data = json.loads(text)
@@ -210,21 +226,23 @@ class ValidationDiffDialog(QDialog):
         self.jsonEditor.setTextCursor(cursor)
         self._revalidate()
 
-    # ------------------------------------------------------------------
     # Save
-    # ------------------------------------------------------------------
 
-    def _save(self):
+    def _save(self) -> None:
         text = self.jsonEditor.toPlainText()
         try:
             data = json.loads(text)
         except json.JSONDecodeError as e:
-            QMessageBox.warning(self, "Invalid JSON", f"Cannot save invalid JSON:\n{e}")
+            QMessageBox.warning(
+                self, "Invalid JSON", f"Cannot save invalid JSON:\n{e}"
+            )
             return
         try:
             self.model.replace(data)
             self.model.save()
         except Exception as e:
-            QMessageBox.critical(self, "Save Error", f"Failed to save file:\n{e}")
+            QMessageBox.critical(
+                self, "Save Error", f"Failed to save file:\n{e}"
+            )
             return
         self.accept()

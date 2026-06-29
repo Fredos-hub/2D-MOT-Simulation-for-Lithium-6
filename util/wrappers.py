@@ -1,5 +1,1 @@
-# ########################################################################## #
-#                                                                            #
-# Module to hold wrapped njit functions that are dont fit into other Modules #
-#                                                                            #
-# ########################################################################## #
+# Module to hold wrapped njit functions that don't fit into other modules

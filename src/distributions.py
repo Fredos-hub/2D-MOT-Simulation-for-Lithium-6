@@ -1,22 +1,18 @@
-##########################################################################################################################
-#Class to handle different types of distribution calculations like finding speed and direction of atoms emitted from oven#
-##########################################################################################################################
+"""Distribution calculations for the speed and direction of oven atoms."""
 
+import math
 
 import numpy as np
 import scipy.constants as scc
+from matplotlib import pyplot as plt
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
-from matplotlib import pyplot as plt
-import math
 
-# ------------------------------------------------------------------------------
 # DistributionLookup Class for Caching the Lookup Table
-# ------------------------------------------------------------------------------
+
 
 class DistributionLookup:
-    """
-    DistributionLookup caches a lookup table for a specified probability distribution.
+    """DistributionLookup caches a lookup table for a specified probability distribution.
 
     This class wraps the functionality of creating and caching a lookup table
     (i.e., mapping CDF bins to velocity values) for a given distribution function.
@@ -42,8 +38,17 @@ class DistributionLookup:
     x_range : np.ndarray, optional
         An explicit array of x values over which to compute the lookup table.
     """
-    def __init__(self, distribution_function, mass, temperature,
-                 num_bins=100000, find_range=False, threshold=1e-12, x_range=None):
+
+    def __init__(
+        self,
+        distribution_function,
+        mass,
+        temperature,
+        num_bins=100000,
+        find_range=False,
+        threshold=1e-12,
+        x_range=None,
+    ):
         self.distribution_function = distribution_function
         self.mass = mass
         self.temperature = temperature
@@ -54,8 +59,7 @@ class DistributionLookup:
         self.lookup_table = None
 
     def get_lookup_table(self):
-        """
-        Get the cached lookup table; if not available, create it.
+        """Get the cached lookup table; if not available, create it.
 
         Returns
         -------
@@ -70,13 +74,12 @@ class DistributionLookup:
                 num_bins=self.num_bins,
                 find_range=self.find_range,
                 threshold=self.threshold,
-                x_range=self.x_range
+                x_range=self.x_range,
             )
         return self.lookup_table
 
     def generate_values(self, n):
-        """
-        Generate n velocity samples using the cached lookup table.
+        """Generate n velocity samples using the cached lookup table.
 
         Parameters
         ----------
@@ -89,18 +92,22 @@ class DistributionLookup:
             Array of velocity values sampled from the distribution.
         """
         lookup_table = self.get_lookup_table()
-        return generate_distribution_values(n, self.distribution_function,
-                                            self.mass, self.temperature,
-                                            lookup_table, self.find_range,
-                                            self.threshold, self.x_range)
-    
+        return generate_distribution_values(
+            n,
+            self.distribution_function,
+            self.mass,
+            self.temperature,
+            lookup_table,
+            self.find_range,
+            self.threshold,
+            self.x_range,
+        )
 
     def plotit(self, distribution_function=None, n_samples=1000000):
-        """
-        Sample velocities from the distribution and plot a normalized histogram along with:
-          - the theoretical model (the distribution function)
-          - the mean velocity
-          - the most likely velocity
+        """Sample velocities and plot a normalized histogram.
+
+        The plot overlays the theoretical model, the mean velocity, and the
+        most likely velocity.
 
         Parameters
         ----------
@@ -144,15 +151,33 @@ class DistributionLookup:
         # Create the plot.
         plt.figure(figsize=(8, 6))
         # Plot normalized histogram of sampled velocities.
-        plt.hist(velocities, bins=int(np.sqrt(n_samples)), density=True, alpha=0.6, label="Sampled distribution")
+        plt.hist(
+            velocities,
+            bins=int(np.sqrt(n_samples)),
+            density=True,
+            alpha=0.6,
+            label="Sampled distribution",
+        )
 
         # Plot the theoretical model.
-        plt.plot(x_vals, pdf_vals, 'r-', lw=2, label="Theoretical model")
+        plt.plot(x_vals, pdf_vals, "r-", lw=2, label="Theoretical model")
 
         # Mark the mean velocity.
-        plt.axvline(v_mean, color='k', linestyle='--', lw=2, label=f'Mean velocity ({v_mean:.2f} m/s)')
+        plt.axvline(
+            v_mean,
+            color="k",
+            linestyle="--",
+            lw=2,
+            label=f"Mean velocity ({v_mean:.2f} m/s)",
+        )
         # Mark the most likely velocity.
-        plt.axvline(v_mp, color='g', linestyle='--', lw=2, label=f'Most likely velocity ({v_mp:.2f} m/s)')
+        plt.axvline(
+            v_mp,
+            color="g",
+            linestyle="--",
+            lw=2,
+            label=f"Most likely velocity ({v_mp:.2f} m/s)",
+        )
 
         plt.xlabel("Velocity (m/s)")
         plt.ylabel("Probability Density")
@@ -161,24 +186,33 @@ class DistributionLookup:
         plt.grid(True)
         plt.show()
 
-# ------------------------------------------------------------------------------
+
 # Pure Distribution Functions (Stateless)
-# ------------------------------------------------------------------------------
+
 
 def maxwell_boltzmann_v2(velocity, mass, temperature):
     """Maxwell-Boltzmann speed distribution (∝ v²)."""
     factor = 4 * np.pi * (mass / (2 * np.pi * scc.k * temperature)) ** 1.5
-    return factor * velocity**2 * np.exp(-mass * velocity**2 / (2 * scc.k * temperature))
+    return (
+        factor
+        * velocity**2
+        * np.exp(-mass * velocity**2 / (2 * scc.k * temperature))
+    )
+
 
 def maxwell_boltzmann_v3(velocity, mass, temperature):
     """Maxwell-Boltzmann effusion distribution (∝ v³, flux-weighted)."""
-    P_v = 0.5 * math.pow((mass / (scc.k * temperature)), 2) * math.pow(velocity, 3) * math.exp((-mass * math.pow(velocity, 2)) / (2 * scc.k * temperature))
+    P_v = (
+        0.5
+        * math.pow((mass / (scc.k * temperature)), 2)
+        * math.pow(velocity, 3)
+        * math.exp((-mass * math.pow(velocity, 2)) / (2 * scc.k * temperature))
+    )
     return P_v
 
 
 def gaussian(x, mu, sigma):
-    """
-    Compute the Gaussian probability density function.
+    """Compute the Gaussian probability density function.
 
     Parameters
     ----------
@@ -194,16 +228,22 @@ def gaussian(x, mu, sigma):
     float
         Gaussian probability density at x.
     """
-    return (1 / (np.sqrt(2 * np.pi) * sigma)) * np.exp(-((x - mu) ** 2) / (2 * sigma**2))
+    return (1 / (np.sqrt(2 * np.pi) * sigma)) * np.exp(
+        -((x - mu) ** 2) / (2 * sigma**2)
+    )
 
 
-# ------------------------------------------------------------------------------
 # Utility Functions for CDF and Lookup Table Generation
-# ------------------------------------------------------------------------------
 
-def find_pdf_range(distribution_function, mass, temperature, threshold=1e-12, initial_step=0.01):
-    """
-    Dynamically compute the x-range where the PDF falls below a given threshold.
+
+def find_pdf_range(
+    distribution_function,
+    mass,
+    temperature,
+    threshold=1e-12,
+    initial_step=0.01,
+):
+    """Dynamically compute the x-range where the PDF falls below a given threshold.
 
     Parameters
     ----------
@@ -241,9 +281,15 @@ def find_pdf_range(distribution_function, mass, temperature, threshold=1e-12, in
     return np.linspace(lower_bound, upper_bound, 10000)
 
 
-def calculate_cdf(distribution_function, mass, temperature, find_range=False, threshold=1e-12, x_range=None):
-    """
-    Calculate the cumulative distribution function (CDF) for a given distribution.
+def calculate_cdf(
+    distribution_function,
+    mass,
+    temperature,
+    find_range=False,
+    threshold=1e-12,
+    x_range=None,
+):
+    """Calculate the cumulative distribution function (CDF) for a given distribution.
 
     Parameters
     ----------
@@ -268,22 +314,34 @@ def calculate_cdf(distribution_function, mass, temperature, find_range=False, th
     """
     if x_range is None:
         if find_range:
-            x_range = find_pdf_range(distribution_function, mass, temperature, threshold)
+            x_range = find_pdf_range(
+                distribution_function, mass, temperature, threshold
+            )
         else:
             # Default fixed range if not dynamically computed and not provided.
             x_range = np.linspace(0, 6000, 10000)
-    pdf_values = np.array([distribution_function(x, mass, temperature) for x in x_range])
+    pdf_values = np.array(
+        [distribution_function(x, mass, temperature) for x in x_range]
+    )
     # Normalize PDF
     pdf_values /= np.trapz(pdf_values, x_range)
     cdf_values = cumulative_trapezoid(pdf_values, x_range, initial=0)
     cdf_values /= cdf_values[-1]
-    cdf_function = interp1d(x_range, cdf_values, bounds_error=False, fill_value=(0, 1))
+    cdf_function = interp1d(
+        x_range, cdf_values, bounds_error=False, fill_value=(0, 1)
+    )
     return cdf_function, x_range
 
 
-def invert_cdf(distribution_function, mass, temperature, find_range=False, threshold=1e-12, x_range=None):
-    """
-    Numerically invert the CDF for a given distribution function.
+def invert_cdf(
+    distribution_function,
+    mass,
+    temperature,
+    find_range=False,
+    threshold=1e-12,
+    x_range=None,
+):
+    """Numerically invert the CDF for a given distribution function.
 
     Parameters
     ----------
@@ -305,17 +363,31 @@ def invert_cdf(distribution_function, mass, temperature, find_range=False, thres
     callable
         A function mapping CDF values to corresponding x (velocity) values.
     """
-    cdf_function, x_range = calculate_cdf(distribution_function, mass, temperature,
-                                           find_range, threshold, x_range)
+    cdf_function, x_range = calculate_cdf(
+        distribution_function,
+        mass,
+        temperature,
+        find_range,
+        threshold,
+        x_range,
+    )
     cdf_values = cdf_function(x_range)
-    inverse_cdf_function = interp1d(cdf_values, x_range, bounds_error=False, fill_value="extrapolate")
+    inverse_cdf_function = interp1d(
+        cdf_values, x_range, bounds_error=False, fill_value="extrapolate"
+    )
     return inverse_cdf_function
 
 
-def create_lookup_table(distribution_function, mass, temperature, num_bins=100000,
-                        find_range=False, threshold=1e-12, x_range=None):
-    """
-    Create a lookup table mapping CDF values to velocity values.
+def create_lookup_table(
+    distribution_function,
+    mass,
+    temperature,
+    num_bins=100000,
+    find_range=False,
+    threshold=1e-12,
+    x_range=None,
+):
+    """Create a lookup table mapping CDF values to velocity values.
 
     Parameters
     ----------
@@ -339,16 +411,30 @@ def create_lookup_table(distribution_function, mass, temperature, num_bins=10000
     np.ndarray
         A 2-element array: (cdf_bins, velocity_bins).
     """
-    inv_cdf = invert_cdf(distribution_function, mass, temperature, find_range, threshold, x_range)
+    inv_cdf = invert_cdf(
+        distribution_function,
+        mass,
+        temperature,
+        find_range,
+        threshold,
+        x_range,
+    )
     cdf_bins = np.linspace(0, 1, num_bins)
     velocity_bins = inv_cdf(cdf_bins)
     return np.array((cdf_bins, velocity_bins))
 
 
-def generate_distribution_values(n, distribution_function, mass, temperature,
-                                 lookup_table=None, find_range=False, threshold=1e-12, x_range=None):
-    """
-    Generate velocity values by inverse transform sampling using a lookup table.
+def generate_distribution_values(
+    n,
+    distribution_function,
+    mass,
+    temperature,
+    lookup_table=None,
+    find_range=False,
+    threshold=1e-12,
+    x_range=None,
+):
+    """Generate velocity values by inverse transform sampling using a lookup table.
 
     Parameters
     ----------
@@ -375,9 +461,15 @@ def generate_distribution_values(n, distribution_function, mass, temperature,
         Array of velocity values sampled from the distribution.
     """
     if lookup_table is None or lookup_table.size == 0:
-        lookup_table = create_lookup_table(distribution_function, mass, temperature,
-                                           num_bins=100000, find_range=find_range,
-                                           threshold=threshold, x_range=x_range)
+        lookup_table = create_lookup_table(
+            distribution_function,
+            mass,
+            temperature,
+            num_bins=100000,
+            find_range=find_range,
+            threshold=threshold,
+            x_range=x_range,
+        )
     cdf_bins, velocity_bins = lookup_table
     pvals = np.random.uniform(0, 1, n)
     num_bins = len(velocity_bins)
@@ -385,9 +477,5 @@ def generate_distribution_values(n, distribution_function, mass, temperature,
     return velocity_bins[indices]
 
 
-
-    
-if __name__ == '__main__':
-
-
+if __name__ == "__main__":
     pass

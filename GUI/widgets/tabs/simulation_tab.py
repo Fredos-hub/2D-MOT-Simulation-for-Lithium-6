@@ -1,12 +1,20 @@
-
 import inspect
-from PyQt5.QtWidgets import (
-    QFormLayout, QLineEdit, QSpinBox, QDoubleSpinBox,QMessageBox,QRadioButton,QGroupBox,
-    QComboBox)
+
 from PyQt5.QtCore import QLocale
-from PyQt5.QtGui import QIntValidator
-from GUI.widgets.tabs.settings_tab_base import SettingsTab, signals_blocked
+from PyQt5.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QLineEdit,
+    QMessageBox,
+    QRadioButton,
+    QSpinBox,
+)
+
 import src.interactions as interactions
+from GUI.widgets.tabs.settings_tab_base import SettingsTab, signals_blocked
+
 
 class SimulationSettingsTab(SettingsTab):
     """
@@ -14,19 +22,18 @@ class SimulationSettingsTab(SettingsTab):
     Fields are loaded from the model on setModel(), and changes are
     written back via model.set(...).
     """
+
     SECTION = "Simulation"
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         layout = QFormLayout(self)
 
-
-
-        #defaultStepSpin
+        # defaultStepSpin
         self.defaultStepSpin = QDoubleSpinBox()
         self.defaultStepSpin.setRange(0, 100)
         self.defaultStepSpin.setMaximumWidth(284)
         self.defaultStepSpin.setLocale(QLocale(QLocale.C))
-        self.defaultStepSpin.setSuffix(" μs")     
+        self.defaultStepSpin.setSuffix(" μs")
         self.defaultStepSpin.setDecimals(1)
         self.defaultStepSpin.setSingleStep(0.1)
         layout.addRow("Default Time Step:", self.defaultStepSpin)
@@ -54,13 +61,16 @@ class SimulationSettingsTab(SettingsTab):
 
         # Interaction class
         self.interactionCombo = QComboBox()
-        names = [name for name, obj in inspect.getmembers(interactions, inspect.isclass)]
+        names = [
+            name
+            for name, obj in inspect.getmembers(interactions, inspect.isclass)
+        ]
         self.interactionCombo.addItems(names)
         self.interactionCombo.setMaximumWidth(284)
         layout.addRow("Interaction:", self.interactionCombo)
 
-        # --- Rate Mode Settings Group ---
-        self.rateGroup = QGroupBox("Rate Mode Settings")   
+        # Rate Mode Settings Group
+        self.rateGroup = QGroupBox("Rate Mode Settings")
         rate_layout = QFormLayout(self.rateGroup)
         self.rateGroup.setMaximumWidth(500)
         # Enable/Disable Rate Mode
@@ -99,51 +109,65 @@ class SimulationSettingsTab(SettingsTab):
         self.estimatedAtomsEdit.setReadOnly(True)
         self.estimatedAtomsEdit.setPlaceholderText("—")  # or "0"
         self.estimatedAtomsEdit.setMaximumWidth(500)
-        rate_layout.addRow("Est. # of Simulated Atoms:", self.estimatedAtomsEdit)
+        rate_layout.addRow(
+            "Est. # of Simulated Atoms:", self.estimatedAtomsEdit
+        )
 
         layout.addRow(self.rateGroup)
-        # --- End Rate Settings Group ---
+        # End Rate Settings Group
 
-
-
-
-    def _connect_signals(self):
+    def _connect_signals(self) -> None:
 
         # commit changes on edit/value change
 
-
-        self.defaultStepSpin.valueChanged.connect(lambda v: self._update_model('default_time_step', v))
+        self.defaultStepSpin.valueChanged.connect(
+            lambda v: self._update_model("default_time_step", v)
+        )
         # Connect Signal for the Step Resolution SpinBox
-        self.resolutionSpin.valueChanged.connect(lambda v: self._update_model('step_resolution', v))
+        self.resolutionSpin.valueChanged.connect(
+            lambda v: self._update_model("step_resolution", v)
+        )
 
         # Connect Signals for the Maximum Simulation Time SpinBox
-        self.maxTimeSpin.valueChanged.connect(lambda v: self._update_model('simulated_time', v))
+        self.maxTimeSpin.valueChanged.connect(
+            lambda v: self._update_model("simulated_time", v)
+        )
         self.maxTimeSpin.valueChanged.connect(self._estimate_atom_count)
 
-
-        #Connect Signal for the Interaction Selection ComboBox
-        self.interactionCombo.currentTextChanged.connect(lambda t: self._update_model('interaction', t))
+        # Connect Signal for the Interaction Selection ComboBox
+        self.interactionCombo.currentTextChanged.connect(
+            lambda t: self._update_model("interaction", t)
+        )
 
         # Connect Signal for the Random Seed SpinBox
-        self.seed_spin.valueChanged.connect(lambda v: self._update_model("random_seed", v))
+        self.seed_spin.valueChanged.connect(
+            lambda v: self._update_model("random_seed", v)
+        )
 
         # Connect Signal for the Rate Mode RadioButton
         self.rateRadioBtn.toggled.connect(self._on_rate_mode_toggled)
-        self.rateRadioBtn.toggled.connect(lambda v: self._update_model("rate_mode",v))
+        self.rateRadioBtn.toggled.connect(
+            lambda v: self._update_model("rate_mode", v)
+        )
 
         # Connect Signals for the Flux SpinBox
-        self.fluxSpin.valueChanged.connect(lambda v: self._update_model("flux", v))
+        self.fluxSpin.valueChanged.connect(
+            lambda v: self._update_model("flux", v)
+        )
         self.fluxSpin.valueChanged.connect(self._estimate_atom_count)
 
         # Connect Signals for the Macroparticle SpinBox
-        self.macroparticleSpin.valueChanged.connect(lambda v: self._update_model("macro_particle_weight", v))
+        self.macroparticleSpin.valueChanged.connect(
+            lambda v: self._update_model("macro_particle_weight", v)
+        )
         self.macroparticleSpin.valueChanged.connect(self._estimate_atom_count)
 
         # Connect Signal for the Injection Cutoff SpinBox
-        self.injectionCutoffSpin.valueChanged.connect(lambda v: self._update_model("injection_cutoff_time", v))
+        self.injectionCutoffSpin.valueChanged.connect(
+            lambda v: self._update_model("injection_cutoff_time", v)
+        )
 
-
-    def setModel(self, model):
+    def setModel(self, model) -> None:
         self._model = model
         widgets = (
             self.resolutionSpin,
@@ -158,16 +182,42 @@ class SimulationSettingsTab(SettingsTab):
         )
         try:
             with signals_blocked(*widgets):
-                self.defaultStepSpin.setValue(model.safe_get('Simulation', 'default_time_step', default=10))
-                self.resolutionSpin.setValue(model.safe_get('Simulation', 'step_resolution', default=10))
-                self.maxTimeSpin.setValue(model.safe_get('Simulation', 'simulated_time', default=3))
-                self.seed_spin.setValue(model.safe_get('Simulation', 'random_seed', default=0))
-                self.rateRadioBtn.setChecked(model.safe_get('Simulation', 'rate_mode', default=False))
-                self.fluxSpin.setValue(model.safe_get('Simulation', 'flux', default=3))
-                self.macroparticleSpin.setValue(model.safe_get('Simulation', 'macro_particle_weight', default=5000))
-                self.injectionCutoffSpin.setValue(model.safe_get('Simulation', 'injection_cutoff_time', default=0))
+                self.defaultStepSpin.setValue(
+                    model.safe_get(
+                        "Simulation", "default_time_step", default=10
+                    )
+                )
+                self.resolutionSpin.setValue(
+                    model.safe_get("Simulation", "step_resolution", default=10)
+                )
+                self.maxTimeSpin.setValue(
+                    model.safe_get("Simulation", "simulated_time", default=3)
+                )
+                self.seed_spin.setValue(
+                    model.safe_get("Simulation", "random_seed", default=0)
+                )
+                self.rateRadioBtn.setChecked(
+                    model.safe_get("Simulation", "rate_mode", default=False)
+                )
+                self.fluxSpin.setValue(
+                    model.safe_get("Simulation", "flux", default=3)
+                )
+                self.macroparticleSpin.setValue(
+                    model.safe_get(
+                        "Simulation", "macro_particle_weight", default=5000
+                    )
+                )
+                self.injectionCutoffSpin.setValue(
+                    model.safe_get(
+                        "Simulation", "injection_cutoff_time", default=0
+                    )
+                )
 
-                interaction = model.safe_get('Simulation', 'interaction', default='Lithium18LevelInteraction')
+                interaction = model.safe_get(
+                    "Simulation",
+                    "interaction",
+                    default="Lithium18LevelInteraction",
+                )
                 if interaction:
                     idx = self.interactionCombo.findText(interaction)
                     if idx >= 0:
@@ -177,26 +227,22 @@ class SimulationSettingsTab(SettingsTab):
             QMessageBox.warning(
                 self,
                 "Load Error",
-                f"Some simulation settings failed to load.\n\n{e}"
+                f"Some simulation settings failed to load.\n\n{e}",
             )
 
         self._estimate_atom_count()
 
-
-    def _on_rate_mode_toggled(self, checked):
+    def _on_rate_mode_toggled(self, checked) -> None:
         # Enable/disable just the Flux and Macroparticle spin boxes
         self.fluxSpin.setEnabled(checked)
         self.macroparticleSpin.setEnabled(checked)
         self.injectionCutoffSpin.setEnabled(checked)
 
-
-
-    def _estimate_atom_count(self):
+    def _estimate_atom_count(self) -> None:
 
         rate = self.fluxSpin.value() * 1e9
         simulation_time = self.maxTimeSpin.value() * 1e-3
         macro_particle_factor = self.macroparticleSpin.value()
-        number_of_atoms = round(rate*simulation_time/macro_particle_factor)
-
+        number_of_atoms = round(rate * simulation_time / macro_particle_factor)
 
         self.estimatedAtomsEdit.setText(str(number_of_atoms))

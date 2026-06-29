@@ -11,7 +11,6 @@ plots.py
 *.json
 *.csv
 *.md
-prototype/
 heatmaps/
 pushbeam_histograms/
 pushbeam_detuning_histograms.py

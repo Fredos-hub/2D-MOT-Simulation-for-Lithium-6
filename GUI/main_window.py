@@ -1,25 +1,26 @@
-# main_window.py
 import os
-from PyQt5.QtWidgets import QMainWindow, QTabWidget, QMessageBox
-from PyQt5.QtGui import QIcon, QFont
-from PyQt5.QtCore import Qt, QSize
+
+from PyQt5.QtCore import QSize, Qt
+from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtWidgets import QMainWindow, QMessageBox, QTabWidget
+
+from GUI.menu_bar import CustomMenuBar
+from GUI.toolbar import ToolBar
+from GUI.widgets.features.incrementor_tab import IncrementorTab
+from GUI.widgets.features.plotting import PlottingTab
+from GUI.widgets.features.sample_generator import SampleGeneratorTab
 
 # Import new shells
 from GUI.widgets.features.simulation_cockpit import SimulationCockpit
-from GUI.widgets.features.plotting import PlottingTab
-from GUI.toolbar import ToolBar
-from GUI.menu_bar import CustomMenuBar
-from GUI.widgets.features.sample_generator import SampleGeneratorTab
-from GUI.widgets.features.incrementor_tab import IncrementorTab
 from GUI.widgets.features.spectrum_tab import SpectrumTab
 
 
 class MainWindow(QMainWindow):
-    BASELINE_DPI = 96.0        # baseline to compare against (Windows/web standard)
-    MIN_POINT_SIZE = 9.0       # smallest readable point size
-    MAX_POINT_SIZE = 28.0      # optional cap to avoid enormous UI
+    BASELINE_DPI = 96.0  # baseline to compare against (Windows/web standard)
+    MIN_POINT_SIZE = 9.0  # smallest readable point size
+    MAX_POINT_SIZE = 28.0  # optional cap to avoid enormous UI
 
-    def __init__(self, app):
+    def __init__(self, app) -> None:
         super().__init__()
         self.app = app
 
@@ -32,7 +33,10 @@ class MainWindow(QMainWindow):
         # Determine initial screen. Prefer windowHandle().screen() if available,
         # otherwise fall back to primaryScreen().
         screen = None
-        if self.windowHandle() is not None and self.windowHandle().screen() is not None:
+        if (
+            self.windowHandle() is not None
+            and self.windowHandle().screen() is not None
+        ):
             screen = self.windowHandle().screen()
         else:
             screen = app.primaryScreen()
@@ -43,11 +47,15 @@ class MainWindow(QMainWindow):
             self.apply_scale_for_screen(screen)
 
         self.setWindowTitle("⁶Li Simulation")
-        icon_path = os.path.join(os.path.dirname(__file__), "icons/simulation_logo_5.png")
+        icon_path = os.path.join(
+            os.path.dirname(__file__), "icons/simulation_logo_5.png"
+        )
         self.setWindowIcon(QIcon(icon_path))
 
         # Set minimum size proportionally using current scale_factor
-        self.setMinimumSize(QSize(int(800 * self.scale_factor), int(600 * self.scale_factor)))
+        self.setMinimumSize(
+            QSize(int(800 * self.scale_factor), int(600 * self.scale_factor))
+        )
         self.setWindowState(Qt.WindowMaximized)
 
         self.toolBar = ToolBar(self)
@@ -61,12 +69,20 @@ class MainWindow(QMainWindow):
 
         self.simulationCockpitTab = SimulationCockpit(self)
         # Single‐model buttons
-        self.simulationCockpitTab.fileDirtyChanged.connect(lambda dirty: self.toolBar.save_action.setEnabled(dirty))
-        self.simulationCockpitTab.fileDirtyChanged.connect(lambda dirty: self.toolBar.discard_action.setEnabled(dirty))
+        self.simulationCockpitTab.fileDirtyChanged.connect(
+            lambda dirty: self.toolBar.save_action.setEnabled(dirty)
+        )
+        self.simulationCockpitTab.fileDirtyChanged.connect(
+            lambda dirty: self.toolBar.discard_action.setEnabled(dirty)
+        )
 
         # Any‐model buttons
-        self.simulationCockpitTab.anyDirtyChanged.connect(lambda dirty: self.toolBar.save_all_action.setEnabled(dirty))
-        self.simulationCockpitTab.anyDirtyChanged.connect(lambda dirty: self.toolBar.discard_all_action.setEnabled(dirty))
+        self.simulationCockpitTab.anyDirtyChanged.connect(
+            lambda dirty: self.toolBar.save_all_action.setEnabled(dirty)
+        )
+        self.simulationCockpitTab.anyDirtyChanged.connect(
+            lambda dirty: self.toolBar.discard_all_action.setEnabled(dirty)
+        )
 
         # Tab for creating samples with the Sample Generator
         self.SampleGeneratorTab = SampleGeneratorTab(self)
@@ -75,36 +91,78 @@ class MainWindow(QMainWindow):
         self.plottingTab = PlottingTab(self)
         self.spectrumTab = SpectrumTab(self)
 
-        self.mainTabWidget.addTab(self.simulationCockpitTab, "Simulation Cockpit")
+        self.mainTabWidget.addTab(
+            self.simulationCockpitTab, "Simulation Cockpit"
+        )
         self.mainTabWidget.addTab(self.SampleGeneratorTab, "Sample Generator")
         self.mainTabWidget.addTab(self.incrementorTab, "Incrementor")
         self.mainTabWidget.addTab(self.plottingTab, "Plotting")
         self.mainTabWidget.addTab(self.spectrumTab, "Spectrum")
 
         # ToolBar button wiring
-        self.toolBar.load_action.triggered.connect(self.simulationCockpitTab.open_directory)
-        self.toolBar.new_action.triggered.connect(self.simulationCockpitTab.create_new_file)
-        self.toolBar.save_action.triggered.connect(self.simulationCockpitTab.save_file)
-        self.toolBar.save_all_action.triggered.connect(self.simulationCockpitTab.save_all)
-        self.toolBar.run_action.triggered.connect(self.simulationCockpitTab.run_simulation_from_file_table)
-        self.toolBar.resume_run_action.triggered.connect(self.simulationCockpitTab.resume_from_checkpoint)
-        self.toolBar.discard_action.triggered.connect(self.simulationCockpitTab.discard_changes)
-        self.toolBar.discard_all_action.triggered.connect(self.simulationCockpitTab.discard_all_changes)
-        self.toolBar.pause_action.triggered.connect(self.simulationCockpitTab.pause_simulation)
-        self.toolBar.resume_action.triggered.connect(self.simulationCockpitTab.resume_simulation)
-        self.toolBar.cancel_action.triggered.connect(self.simulationCockpitTab.cancel_simulation)
-        self.simulationCockpitTab.simulationStateChanged.connect(self._on_simulation_state_changed)
+        self.toolBar.load_action.triggered.connect(
+            self.simulationCockpitTab.open_directory
+        )
+        self.toolBar.new_action.triggered.connect(
+            self.simulationCockpitTab.create_new_file
+        )
+        self.toolBar.save_action.triggered.connect(
+            self.simulationCockpitTab.save_file
+        )
+        self.toolBar.save_all_action.triggered.connect(
+            self.simulationCockpitTab.save_all
+        )
+        self.toolBar.run_action.triggered.connect(
+            self.simulationCockpitTab.run_simulation_from_file_table
+        )
+        self.toolBar.resume_run_action.triggered.connect(
+            self.simulationCockpitTab.resume_from_checkpoint
+        )
+        self.toolBar.discard_action.triggered.connect(
+            self.simulationCockpitTab.discard_changes
+        )
+        self.toolBar.discard_all_action.triggered.connect(
+            self.simulationCockpitTab.discard_all_changes
+        )
+        self.toolBar.pause_action.triggered.connect(
+            self.simulationCockpitTab.pause_simulation
+        )
+        self.toolBar.resume_action.triggered.connect(
+            self.simulationCockpitTab.resume_simulation
+        )
+        self.toolBar.cancel_action.triggered.connect(
+            self.simulationCockpitTab.cancel_simulation
+        )
+        self.simulationCockpitTab.simulationStateChanged.connect(
+            self._on_simulation_state_changed
+        )
 
         # Menu-bar wiring (mirrors the toolbar; reuses the same cockpit slots)
-        self.simulationCockpitTab.fileDirtyChanged.connect(self.menuBar.save_action.setEnabled)
-        self.menuBar.load_action.triggered.connect(self.simulationCockpitTab.open_directory)
-        self.menuBar.save_action.triggered.connect(self.simulationCockpitTab.save_file)
+        self.simulationCockpitTab.fileDirtyChanged.connect(
+            self.menuBar.save_action.setEnabled
+        )
+        self.menuBar.load_action.triggered.connect(
+            self.simulationCockpitTab.open_directory
+        )
+        self.menuBar.save_action.triggered.connect(
+            self.simulationCockpitTab.save_file
+        )
         self.menuBar.exit_action.triggered.connect(self.close)
-        self.menuBar.run_action.triggered.connect(self.simulationCockpitTab.run_simulation_from_file_table)
-        self.menuBar.resume_run_action.triggered.connect(self.simulationCockpitTab.resume_from_checkpoint)
-        self.menuBar.pause_action.triggered.connect(self.simulationCockpitTab.pause_simulation)
-        self.menuBar.resume_action.triggered.connect(self.simulationCockpitTab.resume_simulation)
-        self.menuBar.cancel_action.triggered.connect(self.simulationCockpitTab.cancel_simulation)
+        self.menuBar.run_action.triggered.connect(
+            self.simulationCockpitTab.run_simulation_from_file_table
+        )
+        self.menuBar.resume_run_action.triggered.connect(
+            self.simulationCockpitTab.resume_from_checkpoint
+        )
+        self.menuBar.pause_action.triggered.connect(
+            self.simulationCockpitTab.pause_simulation
+        )
+        self.menuBar.resume_action.triggered.connect(
+            self.simulationCockpitTab.resume_simulation
+        )
+        self.menuBar.cancel_action.triggered.connect(
+            self.simulationCockpitTab.cancel_simulation
+        )
         # Sync initial enabled-states of run/pause/resume/cancel across both bars
         self._on_simulation_state_changed("idle")
 
@@ -116,11 +174,11 @@ class MainWindow(QMainWindow):
             # Connect once the window handle exists (in case __init__ runs before show)
             self.windowHandleChanged.connect(self._onWindowHandleAvailable)
 
-    def _onWindowHandleAvailable(self):
+    def _onWindowHandleAvailable(self) -> None:
         if self.windowHandle() is not None:
             self.windowHandle().screenChanged.connect(self._on_screen_changed)
 
-    def apply_scale_for_screen(self, screen):
+    def apply_scale_for_screen(self, screen) -> None:
         """Compute scale from screen DPI and apply to app font and geometry."""
         if screen is None:
             return
@@ -135,26 +193,32 @@ class MainWindow(QMainWindow):
         # compute new point size from original base_point_size
         new_point = self.base_point_size * scale
         # clamp to sensible bounds
-        new_point = max(self.MIN_POINT_SIZE, min(self.MAX_POINT_SIZE, new_point))
+        new_point = max(
+            self.MIN_POINT_SIZE, min(self.MAX_POINT_SIZE, new_point)
+        )
 
         font = QFont(self.app.font())  # copy current app font
         font.setPointSizeF(new_point)
         self.app.setFont(font)
 
         # Update minimum size proportional to scale
-        self.setMinimumSize(QSize(int(800 * self.scale_factor), int(600 * self.scale_factor)))
+        self.setMinimumSize(
+            QSize(int(800 * self.scale_factor), int(600 * self.scale_factor))
+        )
 
         # Force layout relayout
         self.adjustSize()
         self.updateGeometry()
 
-    def _on_simulation_state_changed(self, state: str):
+    def _on_simulation_state_changed(self, state: str) -> None:
         """Update run/pause/resume/cancel enabled-states on both the toolbar and menu."""
         running = state == "running"
-        paused  = state == "paused"
-        idle    = state == "idle"
+        paused = state == "paused"
+        idle = state == "idle"
         # "Resume run" is only honest when idle AND a checkpoint is actually resumable.
-        resumable = idle and self.simulationCockpitTab.has_resumable_checkpoint()
+        resumable = (
+            idle and self.simulationCockpitTab.has_resumable_checkpoint()
+        )
         for bar in (self.toolBar, self.menuBar):
             bar.run_action.setEnabled(idle)
             bar.resume_run_action.setEnabled(resumable)
@@ -162,11 +226,11 @@ class MainWindow(QMainWindow):
             bar.resume_action.setEnabled(paused)
             bar.cancel_action.setEnabled(running or paused)
 
-    def _on_screen_changed(self, screen):
+    def _on_screen_changed(self, screen) -> None:
         """Slot called when the window moves to another screen."""
         self.apply_scale_for_screen(screen)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event) -> None:
         """Confirm before quitting if work is running or unsaved, then stop threads cleanly."""
         cockpit = self.simulationCockpitTab
         generator = self.SampleGeneratorTab
@@ -179,9 +243,11 @@ class MainWindow(QMainWindow):
 
         if reasons:
             ans = QMessageBox.question(
-                self, "Quit",
+                self,
+                "Quit",
                 "Quit anyway? " + " and ".join(reasons) + ".",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
             )
             if ans != QMessageBox.Yes:
                 event.ignore()

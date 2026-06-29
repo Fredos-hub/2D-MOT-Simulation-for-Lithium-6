@@ -1,13 +1,13 @@
-from PyQt5.QtWidgets import QMenuBar, QAction
 from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QAction, QMenuBar
 
 
 class CustomMenuBar(QMenuBar):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.create_menus()
 
-    def create_menus(self):
+    def create_menus(self) -> None:
         # File Menu with file related actions.
         file_menu = self.addMenu("File")
 

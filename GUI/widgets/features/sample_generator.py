@@ -1,25 +1,36 @@
-
 from __future__ import annotations
 
-from functools import partial
 import csv
 
 import numpy as np
 import pandas as pd
 import scipy.constants as scc
-
-from PyQt5.QtWidgets import (
-    QWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QHBoxLayout, QVBoxLayout,
-    QRadioButton, QProgressBar, QStackedWidget, QLabel, QPushButton,
-    QListWidget, QFileDialog, QLineEdit, QGroupBox, QComboBox
-)
-from PyQt5.QtCore import pyqtSignal, Qt, QLocale, QDir
-
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
+)
+from matplotlib.backends.backend_qt5agg import (
     NavigationToolbar2QT as NavigationToolbar,
 )
 from matplotlib.figure import Figure
+from PyQt5.QtCore import QDir, QLocale, Qt, pyqtSignal
+from PyQt5.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
+    QSpinBox,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from GUI.workers.oven_worker import OvenWorker
 
@@ -31,25 +42,29 @@ class SampleGeneratorTab(QWidget):
     REQUIRED_FILE_COLUMNS = {
         "atom_id",
         "subjective_time",
-        "position_x", "position_y", "position_z",
-        "velocity_x", "velocity_y", "velocity_z",
+        "position_x",
+        "position_y",
+        "position_z",
+        "velocity_x",
+        "velocity_y",
+        "velocity_z",
         "excitation_count",
         "current_groundstate",
     }
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
 
         # File-based state
         self.file_df: pd.DataFrame | None = None
         self.step_times_s: np.ndarray = np.array([], dtype=float)
         self.step_summary: pd.DataFrame = pd.DataFrame()
-        self.worker = None   # active OvenWorker, if any
+        self.worker = None  # active OvenWorker, if any
 
         # Plot widgets are created in _init_ui()
         self._init_ui()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         # Main layout
         main_layout = QVBoxLayout(self)
 
@@ -130,8 +145,12 @@ class SampleGeneratorTab(QWidget):
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self.position_plot_box = self._build_canvas_box("Average position by step", "position")
-        self.velocity_plot_box = self._build_canvas_box("Average velocity by step", "velocity")
+        self.position_plot_box = self._build_canvas_box(
+            "Average position by step", "position"
+        )
+        self.velocity_plot_box = self._build_canvas_box(
+            "Average velocity by step", "velocity"
+        )
         layout.addWidget(self.position_plot_box)
         layout.addWidget(self.velocity_plot_box)
 
@@ -154,7 +173,7 @@ class SampleGeneratorTab(QWidget):
 
         return widget
 
-    def _build_oven_ui(self):
+    def _build_oven_ui(self) -> None:
         group = QGroupBox("Oven Sample Settings")
         layout = QFormLayout()
         self.aperture_data = []
@@ -170,17 +189,22 @@ class SampleGeneratorTab(QWidget):
 
         # Boltzmann Distribution
         self.distribution_combo = QComboBox()
-        self.distribution_combo.addItems([
-            "Maxwell-Boltzmann-Distribution v2",
-            "Maxwell-Boltzmann-Distribution v3"
-        ])
+        self.distribution_combo.addItems(
+            [
+                "Maxwell-Boltzmann-Distribution v2",
+                "Maxwell-Boltzmann-Distribution v3",
+            ]
+        )
         layout.addRow("Distribution:", self.distribution_combo)
 
         # Number of atoms
         self.number_of_atoms_spin = QSpinBox()
         self.number_of_atoms_spin.setRange(0, 100_000_000)
         self.number_of_atoms_spin.setValue(100_000)
-        layout.addRow("Number of sample Atoms to be generated:", self.number_of_atoms_spin)
+        layout.addRow(
+            "Number of sample Atoms to be generated:",
+            self.number_of_atoms_spin,
+        )
 
         # Temperature
         self.temp_spin = QDoubleSpinBox()
@@ -200,7 +224,9 @@ class SampleGeneratorTab(QWidget):
             spin.setDecimals(1)
 
         self.vel_max.setValue(150)
-        layout.addRow("Velocity range:", self._hbox(self.vel_min, self.vel_max))
+        layout.addRow(
+            "Velocity range:", self._hbox(self.vel_min, self.vel_max)
+        )
 
         # Oven geometry: radius and y-position
         self.oven_radius_spin = QDoubleSpinBox()
@@ -216,7 +242,10 @@ class SampleGeneratorTab(QWidget):
         self.oven_ypos_spin.setLocale(QLocale(QLocale.C))
         self.oven_ypos_spin.setDecimals(1)
 
-        layout.addRow("Oven radius & y-pos:", self._hbox(self.oven_radius_spin, self.oven_ypos_spin))
+        layout.addRow(
+            "Oven radius & y-pos:",
+            self._hbox(self.oven_radius_spin, self.oven_ypos_spin),
+        )
 
         # Aperture geometry
         self.aperture_list = QListWidget()
@@ -239,14 +268,24 @@ class SampleGeneratorTab(QWidget):
         self.remove_aperture_btn.clicked.connect(self._remove_aperture)
 
         layout.addRow("Apertures:", self.aperture_list)
-        layout.addRow("Radius & y-pos:", self._hbox(self.ap_radius_spin, self.ap_ypos_spin))
-        layout.addRow("", self._hbox(self.add_aperture_btn, self.remove_aperture_btn))
+        layout.addRow(
+            "Radius & y-pos:",
+            self._hbox(self.ap_radius_spin, self.ap_ypos_spin),
+        )
+        layout.addRow(
+            "", self._hbox(self.add_aperture_btn, self.remove_aperture_btn)
+        )
 
         # Output file
         self.output_line = QLineEdit()
         self.browse_output_btn = QPushButton("Browse…")
-        self.browse_output_btn.clicked.connect(lambda: self._browse_output(self.output_line))
-        layout.addRow("Output file:", self._hbox(self.output_line, self.browse_output_btn))
+        self.browse_output_btn.clicked.connect(
+            lambda: self._browse_output(self.output_line)
+        )
+        layout.addRow(
+            "Output file:",
+            self._hbox(self.output_line, self.browse_output_btn),
+        )
 
         # Generate / Cancel buttons
         self.generate_oven_btn = QPushButton("Generate Sample")
@@ -254,12 +293,14 @@ class SampleGeneratorTab(QWidget):
         self.cancel_oven_btn = QPushButton("Cancel")
         self.cancel_oven_btn.clicked.connect(self._cancel_oven)
         self.cancel_oven_btn.setEnabled(False)
-        layout.addRow("", self._hbox(self.generate_oven_btn, self.cancel_oven_btn))
+        layout.addRow(
+            "", self._hbox(self.generate_oven_btn, self.cancel_oven_btn)
+        )
 
         group.setLayout(layout)
         return group
 
-    def _build_file_ui(self):
+    def _build_file_ui(self) -> None:
         group = QGroupBox("File-based Sample Settings")
         layout = QFormLayout()
 
@@ -267,7 +308,9 @@ class SampleGeneratorTab(QWidget):
         self.input_line = QLineEdit()
         self.browse_input_btn = QPushButton("Browse…")
         self.browse_input_btn.clicked.connect(self._browse_input)
-        layout.addRow("Input file:", self._hbox(self.input_line, self.browse_input_btn))
+        layout.addRow(
+            "Input file:", self._hbox(self.input_line, self.browse_input_btn)
+        )
 
         # Step selector
         self.step_spin = QSpinBox()
@@ -275,7 +318,9 @@ class SampleGeneratorTab(QWidget):
         self.step_spin.valueChanged.connect(self._on_step_changed)
         self.step_time_label = QLabel("0.000 ms")
         self.step_time_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        layout.addRow("Step:", self._hbox(self.step_spin, self.step_time_label))
+        layout.addRow(
+            "Step:", self._hbox(self.step_spin, self.step_time_label)
+        )
 
         # Time selector readout
         self.step_info_label = QLabel("Load a file to enable step navigation.")
@@ -284,8 +329,13 @@ class SampleGeneratorTab(QWidget):
         # Output file
         self.output_line_2 = QLineEdit()
         self.browse_output_btn_2 = QPushButton("Browse…")
-        self.browse_output_btn_2.clicked.connect(lambda: self._browse_output(self.output_line_2))
-        layout.addRow("Output file:", self._hbox(self.output_line_2, self.browse_output_btn_2))
+        self.browse_output_btn_2.clicked.connect(
+            lambda: self._browse_output(self.output_line_2)
+        )
+        layout.addRow(
+            "Output file:",
+            self._hbox(self.output_line_2, self.browse_output_btn_2),
+        )
 
         # Generate button
         self.generate_file_btn = QPushButton("Generate Sample")
@@ -295,7 +345,7 @@ class SampleGeneratorTab(QWidget):
         group.setLayout(layout)
         return group
 
-    def _connect_oven_preview_signals(self):
+    def _connect_oven_preview_signals(self) -> None:
         for spin in (
             self.atom_mass_spin,
             self.temp_spin,
@@ -310,22 +360,32 @@ class SampleGeneratorTab(QWidget):
             lambda *_: self._refresh_oven_preview()
         )
 
-    def _refresh_oven_preview(self):
+    def _refresh_oven_preview(self) -> None:
         if not self.oven_radio.isChecked():
             return
 
         self._update_oven_distribution_plot()
         self._update_oven_draft_plot()
 
-    def _maxwell_boltzmann_speed_pdf(self, speed: np.ndarray, temperature_k: float, mass_u: float) -> np.ndarray:
+    def _maxwell_boltzmann_speed_pdf(
+        self, speed: np.ndarray, temperature_k: float, mass_u: float
+    ) -> np.ndarray:
         """Maxwell-Boltzmann speed distribution for a monatomic gas."""
         temperature_k = max(float(temperature_k), 1e-12)
         mass_kg = max(float(mass_u), 1e-12) * scc.u
 
-        prefactor = 4.0 * np.pi * (mass_kg / (2.0 * np.pi * scc.k * temperature_k)) ** 1.5
-        return prefactor * speed**2 * np.exp(-(mass_kg * speed**2) / (2.0 * scc.k * temperature_k))
+        prefactor = (
+            4.0
+            * np.pi
+            * (mass_kg / (2.0 * np.pi * scc.k * temperature_k)) ** 1.5
+        )
+        return (
+            prefactor
+            * speed**2
+            * np.exp(-(mass_kg * speed**2) / (2.0 * scc.k * temperature_k))
+        )
 
-    def _update_oven_distribution_plot(self):
+    def _update_oven_distribution_plot(self) -> None:
         ax = getattr(self, "distribution_ax", None)
         canvas = getattr(self, "distribution_canvas", None)
         if ax is None or canvas is None:
@@ -339,7 +399,11 @@ class SampleGeneratorTab(QWidget):
         vmax = max(self.vel_min.value(), self.vel_max.value())
 
         mass_kg = mass_u * scc.u
-        v_peak = np.sqrt((2.0 * scc.k * temperature) / mass_kg) if mass_kg > 0 else max(vmax, 1.0)
+        v_peak = (
+            np.sqrt((2.0 * scc.k * temperature) / mass_kg)
+            if mass_kg > 0
+            else max(vmax, 1.0)
+        )
 
         domain_max = max(vmax * 2.0, v_peak * 3.5, 1.0)
         speed = np.linspace(0.0, domain_max, 1000)
@@ -349,7 +413,12 @@ class SampleGeneratorTab(QWidget):
 
         sample_mask = (speed >= vmin) & (speed <= vmax)
         if np.any(sample_mask):
-            ax.plot(speed[sample_mask], pdf[sample_mask], label="Sampled clamp", linewidth=2.6)
+            ax.plot(
+                speed[sample_mask],
+                pdf[sample_mask],
+                label="Sampled clamp",
+                linewidth=2.6,
+            )
             ax.fill_between(speed[sample_mask], pdf[sample_mask], alpha=0.18)
 
         ax.axvline(vmin, linestyle="--", linewidth=1.0)
@@ -365,7 +434,7 @@ class SampleGeneratorTab(QWidget):
         ax.legend(loc="best")
         canvas.draw_idle()
 
-    def _get_oven_components(self):
+    def _get_oven_components(self) -> list[dict]:
         components = [
             {
                 "kind": "oven",
@@ -387,7 +456,7 @@ class SampleGeneratorTab(QWidget):
 
         return sorted(components, key=lambda item: item["y"])
 
-    def _update_oven_draft_plot(self):
+    def _update_oven_draft_plot(self) -> None:
         ax = getattr(self, "oven_draft_ax", None)
         canvas = getattr(self, "oven_draft_canvas", None)
         if ax is None or canvas is None:
@@ -481,7 +550,9 @@ class SampleGeneratorTab(QWidget):
         y_min = float(np.min(y_values)) - max(10.0, max_r * 0.35)
         y_max = float(np.max(y_values)) + max(10.0, max_r * 0.35)
 
-        ax.axvline(0.0, linestyle=":", linewidth=1.0, color="black", alpha=0.55)
+        ax.axvline(
+            0.0, linestyle=":", linewidth=1.0, color="black", alpha=0.55
+        )
         ax.set_xlim(-max_r * 1.35, max_r * 1.35)
         ax.set_ylim(y_min, y_max)
         ax.set_title("2D oven draft (schematic cylindrical cut)")
@@ -490,13 +561,13 @@ class SampleGeneratorTab(QWidget):
         ax.grid(True, alpha=0.25)
         canvas.draw_idle()
 
-    def _hbox(self, *widgets):
+    def _hbox(self, *widgets) -> QHBoxLayout:
         h = QHBoxLayout()
         for w in widgets:
             h.addWidget(w)
         return h
 
-    def _on_mode_changed(self, checked):
+    def _on_mode_changed(self, checked) -> None:
         idx = 0 if self.oven_radio.isChecked() else 1
         self.stacked.setCurrentIndex(idx)
 
@@ -510,7 +581,7 @@ class SampleGeneratorTab(QWidget):
             else:
                 self._clear_file_plots()
 
-    def _refresh_file_ui_state(self):
+    def _refresh_file_ui_state(self) -> None:
         has_file = self.file_df is not None and not self.step_summary.empty
         self.step_spin.setEnabled(has_file)
         self.generate_file_btn.setEnabled(has_file)
@@ -526,17 +597,19 @@ class SampleGeneratorTab(QWidget):
             self.step_spin.setMaximum(0)
             self.step_spin.setValue(0)
             self.step_time_label.setText("0.000 ms")
-            self.step_info_label.setText("Load a file to enable step navigation.")
+            self.step_info_label.setText(
+                "Load a file to enable step navigation."
+            )
             self._clear_file_plots()
 
-    def _add_aperture(self):
+    def _add_aperture(self) -> None:
         r = self.ap_radius_spin.value()
         y = self.ap_ypos_spin.value()
         self.aperture_data.append((r, y))
         self.aperture_list.addItem(f"Aperture: r={r:.1f} mm, y={y:.1f} mm")
         self._refresh_oven_preview()
 
-    def _remove_aperture(self):
+    def _remove_aperture(self) -> None:
         # Delete from the end so row indices stay valid.
         for item in self.aperture_list.selectedItems():
             row = self.aperture_list.row(item)
@@ -545,27 +618,33 @@ class SampleGeneratorTab(QWidget):
             self.aperture_list.takeItem(row)
         self._refresh_oven_preview()
 
-    def _browse_output(self, target_line_edit: QLineEdit):
-        path, _ = QFileDialog.getSaveFileName(self, "Save Output", filter="CSV files (*.csv)")
+    def _browse_output(self, target_line_edit: QLineEdit) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Output", filter="CSV files (*.csv)"
+        )
         if path:
             rel = QDir().relativeFilePath(path)
             target_line_edit.setText(rel)
 
-    def _browse_input(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open Sample File", filter="CSV files (*.csv)")
+    def _browse_input(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Sample File", filter="CSV files (*.csv)"
+        )
         if path:
             rel = QDir().relativeFilePath(path)
             self.input_line.setText(rel)
             self._load_file_data(rel)
 
-    def _load_file_data(self, input_file: str):
+    def _load_file_data(self, input_file: str) -> None:
         try:
             df = pd.read_csv(input_file)
         except Exception as exc:
             self.file_df = None
             self.step_times_s = np.array([], dtype=float)
             self.step_summary = pd.DataFrame()
-            self.statusLabel.setText(f"Status: Failed to read input file ({exc})")
+            self.statusLabel.setText(
+                f"Status: Failed to read input file ({exc})"
+            )
             self._refresh_file_ui_state()
             return
 
@@ -574,26 +653,39 @@ class SampleGeneratorTab(QWidget):
             self.file_df = None
             self.step_times_s = np.array([], dtype=float)
             self.step_summary = pd.DataFrame()
-            self.statusLabel.setText(f"Status: Missing required columns: {', '.join(sorted(missing))}")
+            self.statusLabel.setText(
+                f"Status: Missing required columns: {', '.join(sorted(missing))}"
+            )
             self._refresh_file_ui_state()
             return
 
         self.file_df = df.copy()
 
         # Unique step times in seconds, sorted ascending.
-        self.step_times_s = np.array(sorted(self.file_df["subjective_time"].dropna().unique()), dtype=float)
+        self.step_times_s = np.array(
+            sorted(self.file_df["subjective_time"].dropna().unique()),
+            dtype=float,
+        )
 
         if self.step_times_s.size == 0:
             self.step_summary = pd.DataFrame()
-            self.statusLabel.setText("Status: Input file has no valid subjective_time values.")
+            self.statusLabel.setText(
+                "Status: Input file has no valid subjective_time values."
+            )
             self._refresh_file_ui_state()
             return
 
         # Build a per-step summary for plotting.
         summary = (
-            self.file_df
-            .groupby("subjective_time", as_index=False)[
-                ["position_x", "position_y", "position_z", "velocity_x", "velocity_y", "velocity_z"]
+            self.file_df.groupby("subjective_time", as_index=False)[
+                [
+                    "position_x",
+                    "position_y",
+                    "position_z",
+                    "velocity_x",
+                    "velocity_y",
+                    "velocity_z",
+                ]
             ]
             .mean()
             .sort_values("subjective_time")
@@ -608,15 +700,17 @@ class SampleGeneratorTab(QWidget):
         )
         self._refresh_file_ui_state()
 
-    def _on_step_changed(self, step: int):
+    def _on_step_changed(self, step: int) -> None:
         if self.step_times_s.size == 0:
             self.step_time_label.setText("0.000 ms")
-            self.step_info_label.setText("Load a file to enable step navigation.")
+            self.step_info_label.setText(
+                "Load a file to enable step navigation."
+            )
             return
 
         self._update_step_preview(step)
 
-    def _update_step_preview(self, step: int):
+    def _update_step_preview(self, step: int) -> None:
         if self.step_times_s.size == 0:
             return
 
@@ -625,20 +719,28 @@ class SampleGeneratorTab(QWidget):
         time_ms = time_s * 1000.0
 
         self.step_time_label.setText(f"{time_ms:.3f} ms")
-        self.step_info_label.setText(f"Selected step {step} → {time_ms:.3f} ms")
+        self.step_info_label.setText(
+            f"Selected step {step} → {time_ms:.3f} ms"
+        )
 
         self._update_file_plots(step)
 
-    def _clear_file_plots(self):
-        for ax in (getattr(self, "position_ax", None), getattr(self, "velocity_ax", None)):
+    def _clear_file_plots(self) -> None:
+        for ax in (
+            getattr(self, "position_ax", None),
+            getattr(self, "velocity_ax", None),
+        ):
             if ax is not None:
                 ax.clear()
 
-        for canvas in (getattr(self, "position_canvas", None), getattr(self, "velocity_canvas", None)):
+        for canvas in (
+            getattr(self, "position_canvas", None),
+            getattr(self, "velocity_canvas", None),
+        ):
             if canvas is not None:
                 canvas.draw_idle()
 
-    def _update_file_plots(self, selected_step: int):
+    def _update_file_plots(self, selected_step: int) -> None:
         if self.step_summary.empty:
             self._clear_file_plots()
             return
@@ -689,7 +791,7 @@ class SampleGeneratorTab(QWidget):
         title: str,
         y_label: str,
         selected_time_ms: float,
-    ):
+    ) -> None:
         ax.clear()
 
         for label, y in series:
@@ -699,7 +801,9 @@ class SampleGeneratorTab(QWidget):
             selected_step = max(0, min(selected_step, len(x) - 1))
             ax.axvline(selected_step, linestyle="--", linewidth=1, alpha=0.7)
             for _, y in series:
-                ax.plot(selected_step, y[selected_step], marker="o", markersize=5)
+                ax.plot(
+                    selected_step, y[selected_step], marker="o", markersize=5
+                )
 
         ax.set_title(f"{title} — selected time {selected_time_ms:.3f} ms")
         ax.set_xlabel("Step")
@@ -708,7 +812,7 @@ class SampleGeneratorTab(QWidget):
         ax.grid(True, alpha=0.25)
         canvas.draw_idle()
 
-    def _generate_from_oven(self):
+    def _generate_from_oven(self) -> None:
         # 1) read all the UI state into a plain dict
         params = {
             "atom_mass": self.atom_mass_spin.value(),
@@ -738,11 +842,11 @@ class SampleGeneratorTab(QWidget):
 
         self.statusLabel.setText("Status: Running…")
 
-    def _set_oven_running(self, running: bool):
+    def _set_oven_running(self, running: bool) -> None:
         self.generate_oven_btn.setEnabled(not running)
         self.cancel_oven_btn.setEnabled(running)
 
-    def _cancel_oven(self):
+    def _cancel_oven(self) -> None:
         if self.is_busy():
             self.worker.cancel()
             self.statusLabel.setText("Status: Cancelling…")
@@ -750,28 +854,28 @@ class SampleGeneratorTab(QWidget):
     def is_busy(self) -> bool:
         return self.worker is not None and self.worker.isRunning()
 
-    def cancel_and_wait(self):
+    def cancel_and_wait(self) -> None:
         """Request cancellation and block until the worker thread has finished."""
         if self.is_busy():
             self.worker.cancel()
             self.worker.wait()
 
-    def _on_oven_finished(self, filename):
+    def _on_oven_finished(self, filename) -> None:
         self._set_oven_running(False)
         self.statusLabel.setText(f"Status: Done → {filename}")
         self.sampleCreated.emit(filename)
 
-    def _on_oven_error(self, message):
+    def _on_oven_error(self, message) -> None:
         self._set_oven_running(False)
         self.dist_progress_bar.setValue(0)
         self.statusLabel.setText(f"Status: Error — {message}")
 
-    def _on_oven_cancelled(self):
+    def _on_oven_cancelled(self) -> None:
         self._set_oven_running(False)
         self.dist_progress_bar.setValue(0)
         self.statusLabel.setText("Status: Cancelled.")
 
-    def _generate_from_file(self):
+    def _generate_from_file(self) -> None:
         input_file = self.input_line.text().strip()
         output_file = self.output_line_2.text().strip()
 
@@ -799,7 +903,9 @@ class SampleGeneratorTab(QWidget):
 
         # Use the selected step's exact time slice.
         # The file contains times in seconds; the UI displays ms.
-        step_slice = self.file_df[np.isclose(self.file_df["subjective_time"], selected_time_s)]
+        step_slice = self.file_df[
+            np.isclose(self.file_df["subjective_time"], selected_time_s)
+        ]
 
         if step_slice.empty:
             self.statusLabel.setText(
@@ -818,34 +924,46 @@ class SampleGeneratorTab(QWidget):
 
         with open(output_file, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow([
-                "step",
-                "x", "y", "z", "velocity_x", "velocity_y", "velocity_z",
-                "subjective_time",
-                "excitation_count",
-                "current_groundstate",
-            ])
+            writer.writerow(
+                [
+                    "step",
+                    "x",
+                    "y",
+                    "z",
+                    "velocity_x",
+                    "velocity_y",
+                    "velocity_z",
+                    "subjective_time",
+                    "excitation_count",
+                    "current_groundstate",
+                ]
+            )
 
             for _, row in snapshot.iterrows():
-                writer.writerow([
-                    step,
-                    row["position_x"],
-                    row["position_y"],
-                    row["position_z"],
-                    row["velocity_x"],
-                    row["velocity_y"],
-                    row["velocity_z"],
-                    float(row["subjective_time"]),
-                    int(row["excitation_count"]),
-                    int(row["current_groundstate"]),
-                ])
+                writer.writerow(
+                    [
+                        step,
+                        row["position_x"],
+                        row["position_y"],
+                        row["position_z"],
+                        row["velocity_x"],
+                        row["velocity_y"],
+                        row["velocity_z"],
+                        float(row["subjective_time"]),
+                        int(row["excitation_count"]),
+                        int(row["current_groundstate"]),
+                    ]
+                )
 
         self.statusLabel.setText(
             f"Status: Wrote step {step} ({selected_time_s * 1000.0:.3f} ms) → {output_file}"
         )
         self.sampleCreated.emit(f"{output_file}@step_{step}")
 
-def filter_step_snapshot(data_frame: pd.DataFrame, step_times_s: np.ndarray, step: int):
+
+def filter_step_snapshot(
+    data_frame: pd.DataFrame, step_times_s: np.ndarray, step: int
+) -> pd.DataFrame:
     """
     Helper for step-based selection.
 
@@ -869,7 +987,9 @@ def filter_step_snapshot(data_frame: pd.DataFrame, step_times_s: np.ndarray, ste
         return None
 
     selected_time_s = float(step_times_s[step])
-    filtered_data = data_frame[np.isclose(data_frame["subjective_time"], selected_time_s)]
+    filtered_data = data_frame[
+        np.isclose(data_frame["subjective_time"], selected_time_s)
+    ]
     if filtered_data.empty:
         return None
     return filtered_data.sort_values("subjective_time").iloc[-1]

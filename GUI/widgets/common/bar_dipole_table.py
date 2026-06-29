@@ -1,23 +1,34 @@
+from PyQt5.QtCore import QLocale
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
-    QHeaderView, QSizePolicy, QLabel, QDoubleSpinBox, QMessageBox, QFrame
+    QDoubleSpinBox,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QTableWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtCore import Qt, QLocale
+
 from GUI.widgets.common.vector_input_widget import VectorInputWidget
 from GUI.widgets.tabs.settings_tab_base import signals_blocked
+
 
 class BarDipolesTable(QWidget):
     """
     Table to configure bar‑dipoles in Magnetic_Fields → dipoles.
     """
-    def __init__(self, model=None, parent=None):
+
+    def __init__(self, model=None, parent=None) -> None:
         super().__init__(parent)
         self._model = None
         self._init_ui()
         if model is not None:
             self.setModel(model)
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         layout = QHBoxLayout(self)
 
         # Left: add/remove & plot buttons, with separator
@@ -25,7 +36,7 @@ class BarDipolesTable(QWidget):
         pnl_layout = QVBoxLayout(panel)
 
         # Group 1: Add / Remove
-        btn_add    = QPushButton("Add Dipole")
+        btn_add = QPushButton("Add Dipole")
         btn_remove = QPushButton("Remove Selected")
         btn_add.clicked.connect(self._add_new_dipole)
         btn_remove.clicked.connect(self._remove_selected)
@@ -60,44 +71,56 @@ class BarDipolesTable(QWidget):
             hdr.setSectionResizeMode(i, QHeaderView.Stretch)
 
         self.table.verticalHeader().setDefaultSectionSize(40)
-        self.table.setHorizontalHeaderLabels([
-            "Position (m)",
-            "Dimension (m)",
-            "Orientation",
-            "Magnetization (×10⁵ A/m)"
-        ])
+        self.table.setHorizontalHeaderLabels(
+            [
+                "Position (m)",
+                "Dimension (m)",
+                "Orientation",
+                "Magnetization (×10⁵ A/m)",
+            ]
+        )
 
         layout.addWidget(panel)
         layout.addWidget(self.table)
 
-    def setModel(self, model):
+    def setModel(self, model) -> None:
         """Load dipoles list from model."""
         self._model = model
-        dip_list = model.get('Magnetic_Fields', 'dipoles', default=[]) or []
+        dip_list = model.get("Magnetic_Fields", "dipoles", default=[]) or []
         with signals_blocked(self.table):
             self.table.setRowCount(len(dip_list))
             for row, cfg in enumerate(dip_list):
                 self._populate_row(row, cfg)
-            self.table.setVerticalHeaderLabels([f"D{n}" for n in range(len(dip_list))])
+            self.table.setVerticalHeaderLabels(
+                [f"D{n}" for n in range(len(dip_list))]
+            )
 
-    def _populate_row(self, row, cfg):
+    def _populate_row(self, row, cfg) -> None:
         # Position widget
-        pos_w = VectorInputWidget(cfg.get('position', [0,0,0]), self)
-        pos_w.vectorChanged.connect(lambda vec, r=row: self._update_field(r, 'position', vec))
+        pos_w = VectorInputWidget(cfg.get("position", [0, 0, 0]), self)
+        pos_w.vectorChanged.connect(
+            lambda vec, r=row: self._update_field(r, "position", vec)
+        )
         self.table.setCellWidget(row, 0, pos_w)
 
         # Dimension widget
-        dim_w = VectorInputWidget(cfg.get('dimension', [0.01,0.01,0.01]), self)
-        dim_w.vectorChanged.connect(lambda vec, r=row: self._update_field(r, 'dimension', vec))
+        dim_w = VectorInputWidget(
+            cfg.get("dimension", [0.01, 0.01, 0.01]), self
+        )
+        dim_w.vectorChanged.connect(
+            lambda vec, r=row: self._update_field(r, "dimension", vec)
+        )
         self.table.setCellWidget(row, 1, dim_w)
 
         # Orientation widget
-        ori_w = VectorInputWidget(cfg.get('orientation', [1,0,0]), self)
-        ori_w.vectorChanged.connect(lambda vec, r=row: self._update_field(r, 'orientation', vec))
+        ori_w = VectorInputWidget(cfg.get("orientation", [1, 0, 0]), self)
+        ori_w.vectorChanged.connect(
+            lambda vec, r=row: self._update_field(r, "orientation", vec)
+        )
         self.table.setCellWidget(row, 2, ori_w)
 
         # Magnetization spinbox (display in 1e5 A/m, decimal=2, dot separator)
-        raw_M = cfg.get('magnetization', 8.8e5)
+        raw_M = cfg.get("magnetization", 8.8e5)
         disp_M = raw_M / 1e5
 
         mag_spin = QDoubleSpinBox()
@@ -108,51 +131,65 @@ class BarDipolesTable(QWidget):
         mag_spin.setSuffix("·10⁵")
         mag_spin.setValue(disp_M)
         mag_spin.valueChanged.connect(
-            lambda v, r=row: self._update_field(r, 'magnetization', v * 1e5)
+            lambda v, r=row: self._update_field(r, "magnetization", v * 1e5)
         )
         self.table.setCellWidget(row, 3, mag_spin)
 
-    def _add_new_dipole(self):
+    def _add_new_dipole(self) -> None:
         if not self._model:
             return
-        lst = list(self._model.get('Magnetic_Fields','dipoles', default=[]) or [])
-        lst.append({
-            'position':     [0.0, 0.0, 0.0],
-            'dimension':    [0.01,0.01,0.01],
-            'orientation':  [1.0, 0.0, 0.0],
-            'magnetization': 8.8e5
-        })
-        self._model.set(lst, 'Magnetic_Fields', 'dipoles')
+        lst = list(
+            self._model.get("Magnetic_Fields", "dipoles", default=[]) or []
+        )
+        lst.append(
+            {
+                "position": [0.0, 0.0, 0.0],
+                "dimension": [0.01, 0.01, 0.01],
+                "orientation": [1.0, 0.0, 0.0],
+                "magnetization": 8.8e5,
+            }
+        )
+        self._model.set(lst, "Magnetic_Fields", "dipoles")
         self.setModel(self._model)
 
-    def _remove_selected(self):
+    def _remove_selected(self) -> None:
         """Remove the currently highlighted dipole row."""
         if not self._model:
             return
         row = self.table.currentRow()
         if row < 0:
-            QMessageBox.warning(self, "Remove Dipole", "No row selected to remove.")
+            QMessageBox.warning(
+                self, "Remove Dipole", "No row selected to remove."
+            )
             return
-        lst = list(self._model.get('Magnetic_Fields','dipoles', default=[]) or [])
+        lst = list(
+            self._model.get("Magnetic_Fields", "dipoles", default=[]) or []
+        )
         if 0 <= row < len(lst):
             lst.pop(row)
-            self._model.set(lst, 'Magnetic_Fields', 'dipoles')
+            self._model.set(lst, "Magnetic_Fields", "dipoles")
             self.setModel(self._model)
 
-    def _update_field(self, row, key, value):
+    def _update_field(self, row, key, value) -> None:
         """Update one field in the dipole list and write back."""
         if not self._model:
             return
-        lst = list(self._model.get('Magnetic_Fields','dipoles', default=[]) or [])
+        lst = list(
+            self._model.get("Magnetic_Fields", "dipoles", default=[]) or []
+        )
         if not (0 <= row < len(lst)):
             return
         entry = dict(lst[row])
         entry[key] = value
         lst[row] = entry
-        self._model.set(lst, 'Magnetic_Fields', 'dipoles')
+        self._model.set(lst, "Magnetic_Fields", "dipoles")
 
-    def _plot_along_axis(self):
-        QMessageBox.information(self, "Plot Along Axis", "Plotting along axis…")
+    def _plot_along_axis(self) -> None:
+        QMessageBox.information(
+            self, "Plot Along Axis", "Plotting along axis…"
+        )
 
-    def _plot_field_in_plane(self):
-        QMessageBox.information(self, "Plot Field in Plane", "Plotting field in plane…")
+    def _plot_field_in_plane(self) -> None:
+        QMessageBox.information(
+            self, "Plot Field in Plane", "Plotting field in plane…"
+        )

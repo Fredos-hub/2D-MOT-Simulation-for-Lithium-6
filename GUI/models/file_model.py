@@ -1,18 +1,20 @@
-# models/file_model.py
-
-import json
 import copy
+import json
 from pathlib import Path
+from typing import Any
+
 from PyQt5.QtCore import QObject, pyqtSignal
+
 
 class FileModel(QObject):
     """
     In-memory model of a JSON file, with change-tracking ("dirty") and
     nested get/set for arbitrary keys.
     """
+
     dirtyChanged = pyqtSignal(bool)
 
-    def __init__(self, filepath):
+    def __init__(self, filepath: str | Path) -> None:
         super().__init__()
         self.filepath = Path(filepath)
         self._original = self._load_file()
@@ -20,31 +22,31 @@ class FileModel(QObject):
         self._current = copy.deepcopy(self._original)
         self._dirty = False
 
-    def _load_file(self):
+    def _load_file(self) -> dict:
         if not self.filepath.exists():
             return {}
-        with open(self.filepath, 'r', encoding='utf-8') as f:
+        with open(self.filepath, encoding="utf-8") as f:
             return json.load(f)
 
-    def is_dirty(self):
+    def is_dirty(self) -> bool:
         return self._dirty
 
-    def data(self):
+    def data(self) -> dict:
         """The current (possibly unsaved) in-memory data dict."""
         return self._current
 
-    def replace(self, data):
+    def replace(self, data: dict) -> None:
         """Replace the entire in-memory document (e.g. from a raw-JSON editor)."""
         self._current = data
         self._update_dirty()
 
-    def _update_dirty(self):
-        dirty = (self._current != self._original)
+    def _update_dirty(self) -> None:
+        dirty = self._current != self._original
         if dirty != self._dirty:
             self._dirty = dirty
             self.dirtyChanged.emit(self._dirty)
 
-    def get(self, *keys, default=None):
+    def get(self, *keys, default: Any = None) -> Any:
         """
         Safely drill into nested dicts:
             model.get('Simulation','max_step_number', default=100)
@@ -57,12 +59,14 @@ class FileModel(QObject):
             if node is default:
                 return default
         return node
-    def safe_get(self, section, key, default):
+
+    def safe_get(self, section: str, key: str, default: Any) -> Any:
         try:
             return self.get(section, key, default=default)
         except Exception:
             return default
-    def set(self, value, *keys):
+
+    def set(self, value: Any, *keys) -> None:
         """
         Set a nested key, creating intermediate dicts as needed.
         Emits dirtyChanged if the data really changed.
@@ -73,18 +77,17 @@ class FileModel(QObject):
         node[keys[-1]] = value
         self._update_dirty()
 
-    def save(self):
+    def save(self) -> None:
         """
         Write _current back to the JSON file, update _original, clear dirty.
         """
         self.filepath.write_text(
-            json.dumps(self._current, indent=4),
-            encoding='utf-8'
+            json.dumps(self._current, indent=4), encoding="utf-8"
         )
         self._original = copy.deepcopy(self._current)
         self._update_dirty()
 
-    def reset(self):
+    def reset(self) -> None:
         """
         Discard in-memory changes and restore from disk.
         """
@@ -92,7 +95,7 @@ class FileModel(QObject):
         self._current = copy.deepcopy(self._original)
         self._update_dirty()
 
-    def mark_clean(self):
+    def mark_clean(self) -> None:
         """
         Treat the in‐memory current state as the new baseline.
         Only emit dirtyChanged if we were previously dirty.
