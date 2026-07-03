@@ -2,6 +2,7 @@
 .venv/
 *.gif
 simulation_results/
+field_grids/
 __pycache__/
 *.pyc
 *.pyo

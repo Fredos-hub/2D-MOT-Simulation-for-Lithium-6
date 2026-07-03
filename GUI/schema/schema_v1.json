@@ -131,6 +131,35 @@
       },
 
       {
+        "if": { "properties": { "type": { "const": "GridFieldModel" } } },
+        "then": {
+          "type": "object",
+          "properties": {
+            "type": { "const": "GridFieldModel" },
+            "grid_file": { "type": "string" },
+            "center_offset": { "$ref": "#/definitions/vector3" },
+            "dipoles": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["position", "dimension", "orientation", "magnetization"],
+                "properties": {
+                  "position": { "$ref": "#/definitions/vector3" },
+                  "dimension": { "$ref": "#/definitions/vector3" },
+                  "orientation": { "$ref": "#/definitions/vector3" },
+                  "magnetization": { "type": "number" }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["type", "grid_file", "dipoles"],
+          "additionalProperties": false
+        }
+      },
+
+      {
         "if": { "properties": { "type": { "const": "IdealQuadrupoleField" } } },
         "then": {
           "type": "object",

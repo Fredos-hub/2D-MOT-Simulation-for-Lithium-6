@@ -437,6 +437,185 @@ class CuboidBarMagneticField:
         return max_time_step
 
 
+# Grid Field Model (trilinear interpolation + analytic out-of-bounds fallback)
+grid_spec = [
+    ("x_axis", float64[:]),
+    ("y_axis", float64[:]),
+    ("z_axis", float64[:]),
+    ("Bx", float64[:, :, :]),
+    ("By", float64[:, :, :]),
+    ("Bz", float64[:, :, :]),
+    ("x0", float64),
+    ("dx", float64),
+    ("nx", int32),
+    ("y0", float64),
+    ("dy", float64),
+    ("ny", int32),
+    ("z0", float64),
+    ("dz", float64),
+    ("nz", int32),
+    ("n_bars", int32),
+    ("bar_positions", float64[:, :]),
+    ("bar_half_extents", float64[:, :]),
+    ("bar_mag_axis", int32[:]),
+    ("bar_mag_signed", float64[:]),
+    ("mu0_over_4pi", float64),
+]
+
+
+@jitclass(grid_spec)
+class GridFieldModel:
+    """Trilinear interpolation on a regular (x,y,z)->B grid (Tesla).
+
+    Inside the grid: trilinear blend of the 8 surrounding nodes. Outside ANY
+    axis: the exact analytic cuboid field of the stored bar geometry (D-02 —
+    analytic far-field fallback, NOT clamp), so the field is continuous across
+    the grid face and finite beyond it.
+    """
+
+    def __init__(
+        self,
+        x_axis,
+        y_axis,
+        z_axis,
+        Bx,
+        By,
+        Bz,
+        bar_positions,
+        bar_half_extents,
+        bar_mag_axis,
+        bar_mag_signed,
+    ):
+        self.x_axis = x_axis
+        self.y_axis = y_axis
+        self.z_axis = z_axis
+        self.Bx = Bx
+        self.By = By
+        self.Bz = Bz
+        self.x0 = x_axis[0]
+        self.dx = x_axis[1] - x_axis[0]
+        self.nx = x_axis.shape[0]
+        self.y0 = y_axis[0]
+        self.dy = y_axis[1] - y_axis[0]
+        self.ny = y_axis.shape[0]
+        self.z0 = z_axis[0]
+        self.dz = z_axis[1] - z_axis[0]
+        self.nz = z_axis.shape[0]
+        self.n_bars = bar_positions.shape[0]
+        self.bar_positions = bar_positions
+        self.bar_half_extents = bar_half_extents
+        self.bar_mag_axis = bar_mag_axis
+        self.bar_mag_signed = bar_mag_signed
+        self.mu0_over_4pi = 1e-7
+
+    def calculate_magnetic_field(self, simulation_atoms, atom_id):
+        """Update one atom's field vector and magnitude (Tesla), in place."""
+        calculate_grid_field(
+            self.x_axis,
+            self.y_axis,
+            self.z_axis,
+            self.Bx,
+            self.By,
+            self.Bz,
+            self.x0,
+            self.dx,
+            self.nx,
+            self.y0,
+            self.dy,
+            self.ny,
+            self.z0,
+            self.dz,
+            self.nz,
+            self.n_bars,
+            self.bar_positions,
+            self.bar_half_extents,
+            self.bar_mag_axis,
+            self.bar_mag_signed,
+            self.mu0_over_4pi,
+            simulation_atoms,
+            atom_id,
+        )
+
+    def field_at_positions(self, positions):
+        """Vectorized B (Tesla) and |B| at (N,3) positions, for offline plotting."""
+        n = positions.shape[0]
+        B = np.zeros((n, 3), dtype=np.float64)
+        norm = np.zeros(n, dtype=np.float64)
+        for p in range(n):
+            bx, by, bz = _grid_field_one_point(
+                self.x_axis,
+                self.y_axis,
+                self.z_axis,
+                self.Bx,
+                self.By,
+                self.Bz,
+                self.x0,
+                self.dx,
+                self.nx,
+                self.y0,
+                self.dy,
+                self.ny,
+                self.z0,
+                self.dz,
+                self.nz,
+                self.n_bars,
+                self.bar_positions,
+                self.bar_half_extents,
+                self.bar_mag_axis,
+                self.bar_mag_signed,
+                self.mu0_over_4pi,
+                positions[p, 0],
+                positions[p, 1],
+                positions[p, 2],
+            )
+            B[p, 0] = bx
+            B[p, 1] = by
+            B[p, 2] = bz
+            norm[p] = math.sqrt(bx * bx + by * by + bz * bz)
+        return B, norm
+
+    # Field-magnitude-driven step/time helpers — identical to DipoleBar (v1).
+    def calculate_max_step_length(
+        self, simulation_atoms, atom_id: np.ndarray
+    ) -> None:
+        """Set the adaptive max step length for the atoms from the local field."""
+        B = simulation_atoms.magnetic_field_strength[atom_id]
+
+        if B >= _B_COARSE:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+        elif B >= _B_MID:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-4
+        elif B >= _B_FINE:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-5
+        else:
+            simulation_atoms.max_step_lengths[atom_id] = 1e-6
+
+        return
+
+    def calculate_mean_free_path(self, mean_excitation_time, atom_velocity):
+        """Approximate mean free path between excitation events, in m."""
+        mean_free_path = mean_excitation_time * math.sqrt(
+            atom_velocity[0] ** 2
+            + atom_velocity[1] ** 2
+            + atom_velocity[2] ** 2
+        )
+
+        return mean_free_path
+
+    def calculate_max_time_step(self, max_step_length, atom_velocity):
+        """Largest time step keeping the atom within max_step_length, in s."""
+        max_time_step = max_step_length / (
+            math.sqrt(
+                atom_velocity[0] ** 2
+                + atom_velocity[1] ** 2
+                + atom_velocity[2] ** 2
+            )
+            + 1e-12
+        )
+
+        return max_time_step
+
+
 # NUMBA SPEC
 elliptical_spec = [
     ("g_x", float64),  # gradient along principal x' (units: T/m)
@@ -832,6 +1011,152 @@ def calculate_cuboid_bar_field(
     atoms.magnetic_field_vectors[atom_id, 2] = Bz
     atoms.magnetic_field_strength[atom_id] = math.sqrt(
         Bx * Bx + By * By + Bz * Bz
+    )
+
+
+@njit
+def _trilinear(A, i, j, k, tx, ty, tz):
+    """Blend the 8 corners of cell (i,j,k) with fractional weights tx,ty,tz."""
+    c00 = A[i, j, k] * (1.0 - tx) + A[i + 1, j, k] * tx
+    c10 = A[i, j + 1, k] * (1.0 - tx) + A[i + 1, j + 1, k] * tx
+    c01 = A[i, j, k + 1] * (1.0 - tx) + A[i + 1, j, k + 1] * tx
+    c11 = A[i, j + 1, k + 1] * (1.0 - tx) + A[i + 1, j + 1, k + 1] * tx
+    c0 = c00 * (1.0 - ty) + c10 * ty
+    c1 = c01 * (1.0 - ty) + c11 * ty
+    return c0 * (1.0 - tz) + c1 * tz
+
+
+@njit
+def _grid_field_one_point(
+    x_axis,
+    y_axis,
+    z_axis,
+    Bx,
+    By,
+    Bz,
+    x0,
+    dx,
+    nx,
+    y0,
+    dy,
+    ny,
+    z0,
+    dz,
+    nz,
+    n_bars,
+    bar_positions,
+    bar_half_extents,
+    bar_mag_axis,
+    bar_mag_signed,
+    mu0_over_4pi,
+    rx,
+    ry,
+    rz,
+):
+    """Trilinear B inside the grid; exact analytic cuboid fallback outside (D-02)."""
+    inside = (
+        rx >= x_axis[0]
+        and rx <= x_axis[nx - 1]
+        and ry >= y_axis[0]
+        and ry <= y_axis[ny - 1]
+        and rz >= z_axis[0]
+        and rz <= z_axis[nz - 1]
+    )
+    if not inside:
+        return _cuboid_field_one_point(
+            n_bars,
+            bar_positions,
+            bar_half_extents,
+            bar_mag_axis,
+            bar_mag_signed,
+            mu0_over_4pi,
+            rx,
+            ry,
+            rz,
+        )
+    i = int((rx - x0) / dx)
+    if i < 0:
+        i = 0
+    elif i > nx - 2:
+        i = nx - 2
+    j = int((ry - y0) / dy)
+    if j < 0:
+        j = 0
+    elif j > ny - 2:
+        j = ny - 2
+    k = int((rz - z0) / dz)
+    if k < 0:
+        k = 0
+    elif k > nz - 2:
+        k = nz - 2
+    tx = (rx - x_axis[i]) / dx
+    ty = (ry - y_axis[j]) / dy
+    tz = (rz - z_axis[k]) / dz
+    bx = _trilinear(Bx, i, j, k, tx, ty, tz)
+    by = _trilinear(By, i, j, k, tx, ty, tz)
+    bz = _trilinear(Bz, i, j, k, tx, ty, tz)
+    return bx, by, bz
+
+
+@njit
+def calculate_grid_field(
+    x_axis,
+    y_axis,
+    z_axis,
+    Bx,
+    By,
+    Bz,
+    x0,
+    dx,
+    nx,
+    y0,
+    dy,
+    ny,
+    z0,
+    dz,
+    nz,
+    n_bars,
+    bar_positions,
+    bar_half_extents,
+    bar_mag_axis,
+    bar_mag_signed,
+    mu0_over_4pi,
+    atoms: ECSAtoms,
+    atom_id,
+):
+    """Write the interpolated (or fallback) field (Tesla) into one atom, in place."""
+    rx, ry, rz = atoms.positions[atom_id]
+    bx, by, bz = _grid_field_one_point(
+        x_axis,
+        y_axis,
+        z_axis,
+        Bx,
+        By,
+        Bz,
+        x0,
+        dx,
+        nx,
+        y0,
+        dy,
+        ny,
+        z0,
+        dz,
+        nz,
+        n_bars,
+        bar_positions,
+        bar_half_extents,
+        bar_mag_axis,
+        bar_mag_signed,
+        mu0_over_4pi,
+        rx,
+        ry,
+        rz,
+    )
+    atoms.magnetic_field_vectors[atom_id, 0] = bx
+    atoms.magnetic_field_vectors[atom_id, 1] = by
+    atoms.magnetic_field_vectors[atom_id, 2] = bz
+    atoms.magnetic_field_strength[atom_id] = math.sqrt(
+        bx * bx + by * by + bz * bz
     )
 
 

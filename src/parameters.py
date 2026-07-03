@@ -38,6 +38,7 @@ from src.magnetic_field import (
     CuboidBarMagneticField,
     DipoleBarMagneticField,
     EllipticalMagneticField,
+    GridFieldModel,
     IdealQuadrupoleField,
     ZeemanField,
 )
@@ -173,6 +174,7 @@ class Parameters:
         self.theta_deg: float | None = None
         self.offset: np.ndarray | None = None
         self.dipoles: list[dict[str, Any]] = []
+        self.grid_file: str | None = None
 
         # lasers and boundaries
         self.lasers: list[dict[str, Any]] = []
@@ -321,7 +323,10 @@ class Parameters:
         elif self.magnetic_field_type in (
             "DipoleBarMagneticField",
             "CuboidBarMagneticField",
+            "GridFieldModel",
         ):
+            if self.magnetic_field_type == "GridFieldModel":
+                self.grid_file = field_data["grid_file"]
             self.dipoles = []
             for dipole in field_data["dipoles"]:
                 self.dipoles.append(
@@ -757,8 +762,77 @@ class Parameters:
                     dip["magnetization"],
                 )
             return B_field
+        elif t == "GridFieldModel":
+            try:
+                data = np.load(self.grid_file)
+            except Exception as exc:
+                raise ParameterError(
+                    f"Could not load grid file '{self.grid_file}': {exc}"
+                ) from exc
+            grid = self._validate_grid(data)
+            cub = CuboidBarMagneticField(len(self.dipoles))
+            for idx, dip in enumerate(self.dipoles):
+                cub.add_dipole(
+                    idx,
+                    dip["position"],
+                    dip["dimension"],
+                    dip["orientation"],
+                    dip["magnetization"],
+                )
+            return GridFieldModel(
+                grid["x_axis"],
+                grid["y_axis"],
+                grid["z_axis"],
+                grid["Bx"],
+                grid["By"],
+                grid["Bz"],
+                cub.positions,
+                cub.half_extents,
+                cub.mag_axis,
+                cub.mag_signed,
+            )
         else:
             raise ParameterError(f"Unsupported magnetic field type: {t}")
+
+    @staticmethod
+    def _validate_grid(data):
+        """Validate a loaded NPZ field grid; raise ParameterError on any issue."""
+        required = ("x_axis", "y_axis", "z_axis", "Bx", "By", "Bz")
+        missing = [k for k in required if k not in data]
+        if missing:
+            raise ParameterError(f"Grid file missing keys: {missing}")
+        grid = {}
+        for k in ("x_axis", "y_axis", "z_axis"):
+            a = np.ascontiguousarray(data[k], dtype=np.float64)
+            if a.ndim != 1 or a.size < 2:
+                raise ParameterError(
+                    f"Grid axis '{k}' must be 1D with >=2 nodes"
+                )
+            step = a[1] - a[0]
+            if step <= 0 or not np.allclose(
+                np.diff(a), step, rtol=1e-6, atol=1e-12
+            ):
+                raise ParameterError(
+                    f"Grid axis '{k}' must be uniformly spaced and increasing"
+                )
+            grid[k] = a
+        shape = (
+            grid["x_axis"].size,
+            grid["y_axis"].size,
+            grid["z_axis"].size,
+        )
+        for k in ("Bx", "By", "Bz"):
+            b = np.ascontiguousarray(data[k], dtype=np.float64)
+            if b.shape != shape:
+                raise ParameterError(
+                    f"Grid '{k}' shape {b.shape} does not match axes {shape}"
+                )
+            if not np.isfinite(b).all():
+                raise ParameterError(
+                    f"Grid '{k}' contains non-finite values"
+                )
+            grid[k] = b
+        return grid
 
     # Persistence
     def save_to_file(self, filename: str) -> None:

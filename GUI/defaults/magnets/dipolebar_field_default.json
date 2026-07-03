@@ -1,0 +1,10 @@
+{
+    "type": "DipoleBarMagneticField",
+    "center_offset": [0.0, 0.0, 0.0],
+    "dipoles": [
+        {"position": [0.042, 0.0, 0.021], "dimension": [0.025, 0.009, 0.01], "orientation": [0.0, -1.0, 0.0], "magnetization": 880000.0},
+        {"position": [0.042, 0.0, -0.021], "dimension": [0.025, 0.009, 0.01], "orientation": [0.0, -1.0, 0.0], "magnetization": 880000.0},
+        {"position": [-0.042, 0.0, 0.021], "dimension": [0.025, 0.009, 0.01], "orientation": [0.0, 1.0, 0.0], "magnetization": 880000.0},
+        {"position": [-0.042, 0.0, -0.021], "dimension": [0.025, 0.009, 0.01], "orientation": [0.0, 1.0, 0.0], "magnetization": 880000.0}
+    ]
+}

@@ -277,9 +277,9 @@ class LasersSettingsTab(QWidget):
         # Try to load defaults from GUI/defaults/lasers/<kind>_default.json
         file_defaults = {}
         try:
-            # assumes this file lives in GUI/widgets/<thisfile>.py -> go up to GUI then defaults/lasers
+            # this file lives in GUI/widgets/tabs/ -> parents[2] is GUI, then defaults/lasers
             defaults_dir = (
-                Path(__file__).resolve().parents[1] / "defaults" / "lasers"
+                Path(__file__).resolve().parents[2] / "defaults" / "lasers"
             )
             fname = f"{kind}_default.json"
             p = defaults_dir / fname
