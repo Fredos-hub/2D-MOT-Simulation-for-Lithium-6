@@ -1,11 +1,12 @@
 """Integrated probe spectrum over all atoms at all timesteps.
 
-Feeds every atom-timestep of a simulation run into the steady-state spectrum
-kernel (the same physics as GUI/widgets/spectrum_tab), so slow atoms that
-linger in the high-intensity region contribute proportionally more. Plots the
-peak-normalized scattering rate vs detuning from the trap beam for the three
-probe handednesses. Atom-timesteps outside the (thin) probe beam contribute
-zero intensity and are pre-filtered for speed — this changes nothing physically.
+Feeds every atom-timestep of a simulation run into the steady-state
+spectrum kernel (the same physics as GUI/widgets/spectrum_tab), so slow
+atoms that linger in the high-intensity region contribute proportionally
+more. Plots the peak-normalized scattering rate vs detuning from the
+trap beam for the three probe handednesses. Atom-timesteps outside the
+(thin) probe beam contribute zero intensity and are pre-filtered for
+speed — this changes nothing physically.
 """
 
 from __future__ import annotations
@@ -18,29 +19,21 @@ import numpy as np
 import pandas as pd
 import scipy.constants as scc
 
-from src.spectrum_kernel import (
-    BeamConfig,
-    _gaussian_intensity,
-    build_interaction,
-    build_magnetic_field,
-    compute_spectrum_scan,
-)
-
-HANDEDNESS_LABELS = {
-    -1: "LH ($\\sigma^-$)",
-    0: "LIN ($\\pi$)",
-    1: "RH ($\\sigma^+$)",
-}
-POL_COLORS = {-1: "tab:blue", 1: "tab:red", 0: "tab:green"}
+from ..common import HANDEDNESS_LABELS, POL_COLORS, SPECTRUM_LABELS, output_dir
+from ..registry import plot_type
 
 
 def _lasers_of_type(cfg: dict, kind: str) -> list[dict]:
     return [L for L in cfg["Lasers"] if L.get("type") == kind]
 
 
+@plot_type(
+    "integrated_spectrum",
+    input="run",
+    description="Peak-normalized probe spectrum integrated over a run",
+)
 def plot_integrated_spectrum(
-    csv_path: str | Path,
-    config_path: str | Path,
+    run_dir: str | Path,
     scan_min_MHz: float = -80.0,
     scan_max_MHz: float = 260.0,
     n_bins: int = 300,
@@ -53,10 +46,20 @@ def plot_integrated_spectrum(
     step_stride: int = 1,
     save_path: str | Path | None = None,
     show: bool = False,
-) -> None:
-    csv_path = Path(csv_path)
-    config_path = Path(config_path)
-    cfg = json.loads(config_path.read_text())
+):
+    # Heavy import (Numba JIT) — keep local so importing the plotting
+    # package stays cheap.
+    from src.spectrum_kernel import (
+        BeamConfig,
+        _gaussian_intensity,
+        build_interaction,
+        build_magnetic_field,
+        compute_spectrum_scan,
+    )
+
+    run_dir = Path(run_dir)
+    csv_path = run_dir / "result.csv"
+    cfg = json.loads((run_dir / "config.json").read_text())
 
     traps = _lasers_of_type(cfg, "trap")
     if not traps:
@@ -90,7 +93,8 @@ def plot_integrated_spectrum(
     )
     ground_states = df["current_groundstate"].to_numpy(np.int32)
 
-    # Pre-filter atom-timesteps outside the probe beam (zero intensity -> zero rate).
+    # Pre-filter atom-timesteps outside the probe beam (zero intensity
+    # -> zero rate).
     dvec = np.asarray(direction, np.float64)
     dvec = dvec / np.linalg.norm(dvec)
     wavelength = scc.c / trap_freq_Hz
@@ -138,14 +142,15 @@ def plot_integrated_spectrum(
         )
         peak = float(res.rates.max())
         y = res.rates / peak if peak > 0.0 else res.rates
+        color = POL_COLORS[HANDEDNESS_LABELS[h]]
         ax.plot(
             res.detunings_MHz,
             y,
-            color=POL_COLORS[h],
-            label=HANDEDNESS_LABELS[h],
+            color=color,
+            label=SPECTRUM_LABELS[h],
             lw=1.8,
         )
-        ax.fill_between(res.detunings_MHz, y, alpha=0.10, color=POL_COLORS[h])
+        ax.fill_between(res.detunings_MHz, y, alpha=0.10, color=color)
 
     # Orientation guides: trap line at 0, repump beam offset.
     ax.axvline(0.0, color="0.5", lw=0.8, ls=":")
@@ -161,7 +166,7 @@ def plot_integrated_spectrum(
     ax.set_xlabel("Detuning from trap beam (MHz)")
     ax.set_ylabel("Normalized scattering rate (peak = 1)")
     ax.set_title(
-        f"Integrated probe spectrum — {csv_path.parent.name}  "
+        f"Integrated probe spectrum — {run_dir.name}  "
         f"($N={len(positions)}$ atom-steps in beam"
         f"{', B-field' if use_b_field else ', B=0'})"
     )
@@ -171,9 +176,8 @@ def plot_integrated_spectrum(
 
     if save_path is None:
         save_path = (
-            Path(__file__).parent
-            / "spectra"
-            / f"{csv_path.parent.name}_integrated_spectrum.png"
+            output_dir("spectra")
+            / f"{run_dir.name}_integrated_spectrum.png"
         )
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -183,9 +187,3 @@ def plot_integrated_spectrum(
     else:
         plt.close(fig)
     return save_path
-
-
-if __name__ == "__main__":
-    repo_root = Path(__file__).resolve().parent.parent
-    run = repo_root / "simulation_results" / "19_05_26_1" / "run_4"
-    plot_integrated_spectrum(run / "result.csv", run / "config.json")

@@ -8,14 +8,10 @@ __pycache__/
 *.pyo
 *.pyd
 find_transition_strengths.py
-plots.py
 *.json
 *.csv
 *.md
-heatmaps/
-pushbeam_histograms/
-pushbeam_detuning_histograms.py
-trapped_atoms_heatmap.py
+analysis_output/
 .planning/
 logs/
 scripts/
