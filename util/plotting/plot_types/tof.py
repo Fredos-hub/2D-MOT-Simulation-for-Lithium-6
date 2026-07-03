@@ -173,8 +173,7 @@ def plot_tof_from_summary(
     """
     if time_reference not in ("lab", "flight"):
         raise ValueError(
-            f"time_reference must be 'lab' or 'flight', "
-            f"got {time_reference!r}"
+            f"time_reference must be 'lab' or 'flight', got {time_reference!r}"
         )
     df = pd.read_csv(summary_csv)
     df = df[df["rho_cross_mm"] < transverse_radius_mm].copy()
@@ -189,9 +188,7 @@ def plot_tof_from_summary(
     for (pol, pl), grp in df.groupby(["pol", "push_len_ms"]):
         data.setdefault(pol, {})[pl] = grp["t"].to_numpy()
         if density_weight:
-            wts.setdefault(pol, {})[pl] = (
-                1.0 / grp["vz_cross_m_s"].to_numpy()
-            )
+            wts.setdefault(pol, {})[pl] = 1.0 / grp["vz_cross_m_s"].to_numpy()
         nreps.setdefault(pol, {})[pl] = grp["seed"].nunique()
     edges = _tof_edges(data, bin_width_ms, t_range, extrapolate_to_ms)
     centers = 0.5 * (edges[:-1] + edges[1:])
@@ -216,9 +213,7 @@ def plot_tof_from_summary(
         for k, pl in enumerate(push_lens):
             t = data[pol][pl]
             w = wts[pol][pl] if density_weight else None
-            counts = (
-                np.histogram(t, bins=edges, weights=w)[0] / nreps[pol][pl]
-            )
+            counts = np.histogram(t, bins=edges, weights=w)[0] / nreps[pol][pl]
             color = PUSH_LEN_CMAP(k / max(len(push_lens) - 1, 1))
             ax.plot(
                 centers,
@@ -292,8 +287,7 @@ def plot_pushbeam_tof_spectrum(
     """
     if time_reference not in ("lab", "flight"):
         raise ValueError(
-            f"time_reference must be 'lab' or 'flight', "
-            f"got {time_reference!r}"
+            f"time_reference must be 'lab' or 'flight', got {time_reference!r}"
         )
 
     data, nreps = _collect_tof_times(
@@ -384,8 +378,7 @@ def plot_pushbeam_tof_circular_average(
     """
     if time_reference not in ("lab", "flight"):
         raise ValueError(
-            f"time_reference must be 'lab' or 'flight', "
-            f"got {time_reference!r}"
+            f"time_reference must be 'lab' or 'flight', got {time_reference!r}"
         )
 
     data, nreps = _collect_tof_times(
@@ -735,7 +728,5 @@ def plot_pushscan_detuning(
             a1.grid(alpha=0.3)
             a1.set_title(f"Detuning scan - {pol}, {t:g} ms start")
             fig.tight_layout()
-            fig.savefig(
-                out_dir / f"scan_detuning_{pol}_{t:g}ms.png", dpi=130
-            )
+            fig.savefig(out_dir / f"scan_detuning_{pol}_{t:g}ms.png", dpi=130)
             plt.close(fig)

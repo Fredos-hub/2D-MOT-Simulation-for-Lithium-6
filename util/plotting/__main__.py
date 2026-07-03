@@ -17,9 +17,7 @@ from .shell import PlotShell
 
 def _parse_param(item: str) -> tuple[str, object]:
     if "=" not in item:
-        raise argparse.ArgumentTypeError(
-            f"expected key=value, got {item!r}"
-        )
+        raise argparse.ArgumentTypeError(f"expected key=value, got {item!r}")
     key, raw = item.split("=", 1)
     try:
         value = ast.literal_eval(raw)
@@ -33,9 +31,7 @@ def main() -> None:
         prog="python -m util.plotting",
         description="Run a registered plot type on simulation output.",
     )
-    parser.add_argument(
-        "plot", help="plot type name, or 'list' to show all"
-    )
+    parser.add_argument("plot", help="plot type name, or 'list' to show all")
     parser.add_argument(
         "data",
         nargs="?",

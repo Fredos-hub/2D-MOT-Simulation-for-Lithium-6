@@ -18,9 +18,7 @@ SUMMARY_FILE = "_trapped_summary.json"
 def _extract_detunings(config_path: Path) -> tuple[float, float]:
     """Return (trap_detuning, repump_detuning) for one run, in gamma."""
     config = json.loads(config_path.read_text())
-    trap = {
-        L["detuning"] for L in config["Lasers"] if L.get("type") == "trap"
-    }
+    trap = {L["detuning"] for L in config["Lasers"] if L.get("type") == "trap"}
     repump = {
         L["detuning"] for L in config["Lasers"] if L.get("type") == "repump"
     }
@@ -160,8 +158,7 @@ def plot_trapped_atoms_heatmap(
     )
 
     df = df.assign(
-        value=df["n_trapped"] / df["n_total"] if normalize
-        else df["n_trapped"]
+        value=df["n_trapped"] / df["n_total"] if normalize else df["n_trapped"]
     )
     pivot = (
         df.groupby(["trap_d", "repump_d"])["value"]

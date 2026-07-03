@@ -315,7 +315,10 @@ class DipoleBarMagneticField:
 cuboid_spec = [
     ("n_bars", int32),
     ("positions", float64[:, :]),  # (n_bars,3) bar centers, m
-    ("half_extents", float64[:, :]),  # (n_bars,3) = dimension/2 along lab x,y,z
+    (
+        "half_extents",
+        float64[:, :],
+    ),  # (n_bars,3) = dimension/2 along lab x,y,z
     ("mag_axis", int32[:]),  # lab axis (0/1/2) the magnetization points along
     ("mag_signed", float64[:]),  # signed magnetization magnitude (A/m)
     ("mu0_over_4pi", float64),

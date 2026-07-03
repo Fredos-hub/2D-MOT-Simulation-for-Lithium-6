@@ -828,9 +828,7 @@ class Parameters:
                     f"Grid '{k}' shape {b.shape} does not match axes {shape}"
                 )
             if not np.isfinite(b).all():
-                raise ParameterError(
-                    f"Grid '{k}' contains non-finite values"
-                )
+                raise ParameterError(f"Grid '{k}' contains non-finite values")
             grid[k] = b
         return grid
 

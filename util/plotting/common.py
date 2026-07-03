@@ -144,8 +144,14 @@ def load_snapshot(
         if dt_s is None:
             raise ValueError("extrapolate=True requires dt_s")
         usecols = sorted(
-            {*base, "atom_id", "velocity_x", "velocity_y", "velocity_z",
-             *columns}
+            {
+                *base,
+                "atom_id",
+                "velocity_x",
+                "velocity_y",
+                "velocity_z",
+                *columns,
+            }
         )
         df = pd.read_csv(csv_path, usecols=usecols)
         # each atom's row at the latest step <= snapshot step
@@ -228,9 +234,9 @@ def crossing_records(
         exc_arr = (
             g["excitation_count"].to_numpy() if include_excitation else None
         )
-        cross = np.where(
-            (z[:-1] < z_threshold_m) & (z[1:] >= z_threshold_m)
-        )[0]
+        cross = np.where((z[:-1] < z_threshold_m) & (z[1:] >= z_threshold_m))[
+            0
+        ]
         if len(cross) > 0:
             i = cross[0]
             frac = (z_threshold_m - z[i]) / (z[i + 1] - z[i])

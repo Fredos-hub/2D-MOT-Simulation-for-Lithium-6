@@ -176,8 +176,7 @@ def plot_integrated_spectrum(
 
     if save_path is None:
         save_path = (
-            output_dir("spectra")
-            / f"{run_dir.name}_integrated_spectrum.png"
+            output_dir("spectra") / f"{run_dir.name}_integrated_spectrum.png"
         )
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)

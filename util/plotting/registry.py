@@ -29,9 +29,7 @@ _REGISTRY: dict[str, PlotType] = {}
 def plot_type(name: str, input: str, description: str = ""):
     """Decorator registering a plot function under `name`."""
     if input not in INPUT_KINDS:
-        raise ValueError(
-            f"input must be one of {INPUT_KINDS}, got {input!r}"
-        )
+        raise ValueError(f"input must be one of {INPUT_KINDS}, got {input!r}")
 
     def decorator(func: Callable) -> Callable:
         if name in _REGISTRY:
