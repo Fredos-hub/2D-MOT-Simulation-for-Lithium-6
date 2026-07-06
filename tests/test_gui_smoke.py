@@ -30,9 +30,17 @@ GUI_DIR = REPO_ROOT / "GUI"
 EXPECTED_TABS = [
     "Simulation Cockpit",
     "Sample Generator",
+    "Diagonalizer Tables",
     "Incrementor",
     "Plotting",
     "Spectrum",
+]
+
+# Diagonalizer models added in phase 04; both must auto-appear in the
+# interaction dropdown (populated by introspection over src.interactions).
+DIAGONALIZER_MODELS = [
+    "Lithium6DiagonalizerInteraction",
+    "Lithium6DiagonalizerTableInteraction",
 ]
 
 # Old paths deleted/moved by the GUI refactor. None of these may be imported again.
@@ -74,6 +82,37 @@ def test_main_window_and_all_tabs_construct(qapp, repo_root_cwd):
         assert titles == EXPECTED_TABS
     finally:
         window.close()
+
+
+def test_diagonalizer_tab_present(qapp, repo_root_cwd):
+    """The 'Diagonalizer Tables' generator tab is registered on MainWindow."""
+    from GUI.main_window import MainWindow
+
+    window = MainWindow(qapp)
+    try:
+        tab_widget = window.mainTabWidget
+        titles = [tab_widget.tabText(i) for i in range(tab_widget.count())]
+        assert "Diagonalizer Tables" in titles
+        # The tab widget renders and exposes the busy/cancel lifecycle hooks.
+        tab = window.diagonalizerGeneratorTab
+        assert hasattr(tab, "is_busy") and hasattr(tab, "cancel_and_wait")
+        assert not tab.is_busy()
+    finally:
+        window.close()
+
+
+def test_diagonalizer_models_in_interaction_dropdown(qapp, repo_root_cwd):
+    """Both new models auto-appear in the interaction dropdown (introspection)."""
+    from GUI.widgets.tabs.simulation_tab import SimulationSettingsTab
+
+    tab = SimulationSettingsTab()
+    try:
+        combo = tab.interactionCombo
+        names = [combo.itemText(i) for i in range(combo.count())]
+        for model in DIAGONALIZER_MODELS:
+            assert model in names, f"{model} missing from interaction dropdown"
+    finally:
+        tab.deleteLater()
 
 
 def _noncomment_lines(path):
