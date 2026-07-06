@@ -38,6 +38,7 @@ def absorption_and_emission_default_timestep(
     excitation_counter: np.ndarray,
     default_timestep: float,
     excitation_hist: np.ndarray = None,
+    substep_counter: np.ndarray = None,
 ) -> None:
     """Advance the given atoms over one default timestep (core physics kernel).
 
@@ -63,6 +64,11 @@ def absorption_and_emission_default_timestep(
         Length of the step, in s.
     excitation_hist : ndarray, optional
         Optional per-event histogram buffer.
+    substep_counter : ndarray, optional
+        Per-thread ``int64`` cells (length >= n_threads). Each inner while-loop
+        iteration (one substep) increments ``substep_counter[tid]``. Lightweight
+        benchmark instrumentation (plan 04-06): purely additive, touches no
+        physics branch; the total is reduced (summed) in the Python driver.
     """
     n_lasers = lasers.n_lasers
     laser_handedness = lasers.handedness
@@ -123,6 +129,7 @@ def absorption_and_emission_default_timestep(
 
         # main loop for this atom
         while accumulated_times[idx] < default_timestep:
+            substep_counter[tid] += 1  # additive benchmark instrumentation
             pos = positions_arr[atom_id]
             vel = velocities_arr[atom_id]
             magnetic_field.calculate_magnetic_field(simulation_atoms, atom_id)

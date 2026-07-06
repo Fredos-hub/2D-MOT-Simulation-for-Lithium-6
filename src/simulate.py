@@ -1,7 +1,7 @@
 """Simulation: step loop, atom activation, boundary checks, and lifecycle."""
 
 import numpy as np
-from numba import njit
+from numba import get_num_threads, njit
 
 from src.absorption_and_emission_process import (
     absorption_and_emission_default_timestep,
@@ -82,6 +82,16 @@ class Simulation:
             dtype=np.int64,
         )
 
+        # Benchmark instrumentation (plan 04-06): one int64 cell per Numba
+        # thread. The kernel increments substep_counter[tid] once per inner
+        # substep; the total over the run is read via `total_substeps`.
+        self.substep_counter = np.zeros(get_num_threads(), dtype=np.int64)
+
+    @property
+    def total_substeps(self) -> int:
+        """Total inner substeps executed so far (summed over threads)."""
+        return int(self.substep_counter.sum())
+
     def warmup(self, stop_callback=None):
         """Run two throwaway steps to trigger Numba JIT compilation.
 
@@ -104,6 +114,7 @@ class Simulation:
                 excitation_counter=self.excitation_counter,
                 default_timestep=self.default_timestep,
                 excitation_hist=self.excitation_hist,
+                substep_counter=self.substep_counter,
             )
         print("Warmup step completed.")
 
@@ -163,6 +174,7 @@ class Simulation:
             excitation_counter=self.excitation_counter,
             default_timestep=self.default_timestep,
             excitation_hist=self.excitation_hist,
+            substep_counter=self.substep_counter,
         )
 
         # 5) Advance the step counter
