@@ -1,19 +1,24 @@
 import inspect
 
-from PyQt5.QtCore import QLocale
+from PyQt5.QtCore import QDir, QLocale
 from PyQt5.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLineEdit,
     QMessageBox,
+    QPushButton,
     QRadioButton,
     QSpinBox,
 )
 
 import src.interactions as interactions
 from GUI.widgets.tabs.settings_tab_base import SettingsTab, signals_blocked
+
+TABLE_INTERACTION = "Lithium6DiagonalizerTableInteraction"
 
 
 class SimulationSettingsTab(SettingsTab):
@@ -69,6 +74,16 @@ class SimulationSettingsTab(SettingsTab):
         self.interactionCombo.setMaximumWidth(284)
         layout.addRow("Interaction:", self.interactionCombo)
 
+        # Interaction table file (used by Lithium6DiagonalizerTableInteraction).
+        # The row is always shown but enabled only when that model is selected.
+        self.interactionTableFileEdit = QLineEdit()
+        self.interactionTableFileEdit.setMaximumWidth(284)
+        self.interactionTableFileBrowse = QPushButton("Browse…")
+        table_row = QHBoxLayout()
+        table_row.addWidget(self.interactionTableFileEdit)
+        table_row.addWidget(self.interactionTableFileBrowse)
+        layout.addRow("Interaction Table (.npz):", table_row)
+
         # Rate Mode Settings Group
         self.rateGroup = QGroupBox("Rate Mode Settings")
         rate_layout = QFormLayout(self.rateGroup)
@@ -116,6 +131,8 @@ class SimulationSettingsTab(SettingsTab):
         layout.addRow(self.rateGroup)
         # End Rate Settings Group
 
+        self._update_table_file_enabled()
+
     def _connect_signals(self) -> None:
 
         # commit changes on edit/value change
@@ -137,6 +154,17 @@ class SimulationSettingsTab(SettingsTab):
         # Connect Signal for the Interaction Selection ComboBox
         self.interactionCombo.currentTextChanged.connect(
             lambda t: self._update_model("interaction", t)
+        )
+
+        # Interaction table-file path (Lithium6DiagonalizerTableInteraction)
+        self.interactionTableFileEdit.textChanged.connect(
+            lambda t: self._update_model("interaction_table_file", t)
+        )
+        self.interactionTableFileBrowse.clicked.connect(
+            self._browse_table_file
+        )
+        self.interactionCombo.currentTextChanged.connect(
+            self._update_table_file_enabled
         )
 
         # Connect Signal for the Random Seed SpinBox
@@ -175,6 +203,7 @@ class SimulationSettingsTab(SettingsTab):
             self.defaultStepSpin,
             self.seed_spin,
             self.interactionCombo,
+            self.interactionTableFileEdit,
             self.rateRadioBtn,
             self.fluxSpin,
             self.macroparticleSpin,
@@ -213,6 +242,12 @@ class SimulationSettingsTab(SettingsTab):
                     )
                 )
 
+                self.interactionTableFileEdit.setText(
+                    model.safe_get(
+                        "Simulation", "interaction_table_file", default=""
+                    )
+                )
+
                 interaction = model.safe_get(
                     "Simulation",
                     "interaction",
@@ -230,7 +265,23 @@ class SimulationSettingsTab(SettingsTab):
                 f"Some simulation settings failed to load.\n\n{e}",
             )
 
+        self._update_table_file_enabled()
         self._estimate_atom_count()
+
+    def _browse_table_file(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Interaction Table", filter="NumPy tables (*.npz)"
+        )
+        if path:
+            self.interactionTableFileEdit.setText(
+                QDir().relativeFilePath(path)
+            )
+
+    def _update_table_file_enabled(self, *_) -> None:
+        """Enable the table-file row only for the table diagonalizer model."""
+        is_table = self.interactionCombo.currentText() == TABLE_INTERACTION
+        self.interactionTableFileEdit.setEnabled(is_table)
+        self.interactionTableFileBrowse.setEnabled(is_table)
 
     def _on_rate_mode_toggled(self, checked) -> None:
         # Enable/disable just the Flux and Macroparticle spin boxes
