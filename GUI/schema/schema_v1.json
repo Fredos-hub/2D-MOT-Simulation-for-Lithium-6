@@ -357,6 +357,7 @@
       ],
       "properties": {
         "interaction": { "type": "string", "default": "Lithium18LevelInteraction" },
+        "interaction_table_file": { "type": "string" },
         "step_resolution": { "type": "integer", "minimum": 1, "default": 1 },
         "simulated_time": { "type": "number", "minimum": 0, "default": 4.0 },
         "random_seed": { "type": "integer", "default": 15 },

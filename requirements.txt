@@ -8,3 +8,5 @@ tqdm
 jsonschema>=4.0.0
 # offline/dev-only: grid generation + njit-cuboid cross-check. NEVER imported in src/ (kernel).
 magpylib>=5.2,<6
+# offline/dev-only: Wigner-symbol diagonalizer setup + fixture generation. NEVER imported in src/ (kernel).
+sympy>=1.12

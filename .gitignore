@@ -3,6 +3,7 @@
 *.gif
 simulation_results/
 field_grids/
+interaction_tables/
 __pycache__/
 *.pyc
 *.pyo

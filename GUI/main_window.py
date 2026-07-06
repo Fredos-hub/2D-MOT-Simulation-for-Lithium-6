@@ -6,6 +6,9 @@ from PyQt5.QtWidgets import QMainWindow, QMessageBox, QTabWidget
 
 from GUI.menu_bar import CustomMenuBar
 from GUI.toolbar import ToolBar
+from GUI.widgets.features.diagonalizer_generator_tab import (
+    DiagonalizerGeneratorTab,
+)
 from GUI.widgets.features.incrementor_tab import IncrementorTab
 from GUI.widgets.features.plotting import PlottingTab
 from GUI.widgets.features.sample_generator import SampleGeneratorTab
@@ -86,6 +89,8 @@ class MainWindow(QMainWindow):
 
         # Tab for creating samples with the Sample Generator
         self.SampleGeneratorTab = SampleGeneratorTab(self)
+        # Tab for generating precomputed diagonalizer tables (NPZ)
+        self.diagonalizerGeneratorTab = DiagonalizerGeneratorTab(self)
         # Tab for generating parameter files quickly
         self.incrementorTab = IncrementorTab(self)
         self.plottingTab = PlottingTab(self)
@@ -95,6 +100,9 @@ class MainWindow(QMainWindow):
             self.simulationCockpitTab, "Simulation Cockpit"
         )
         self.mainTabWidget.addTab(self.SampleGeneratorTab, "Sample Generator")
+        self.mainTabWidget.addTab(
+            self.diagonalizerGeneratorTab, "Diagonalizer Tables"
+        )
         self.mainTabWidget.addTab(self.incrementorTab, "Incrementor")
         self.mainTabWidget.addTab(self.plottingTab, "Plotting")
         self.mainTabWidget.addTab(self.spectrumTab, "Spectrum")
@@ -234,9 +242,14 @@ class MainWindow(QMainWindow):
         """Confirm before quitting if work is running or unsaved, then stop threads cleanly."""
         cockpit = self.simulationCockpitTab
         generator = self.SampleGeneratorTab
+        table_generator = self.diagonalizerGeneratorTab
 
         reasons = []
-        if cockpit.is_simulation_running() or generator.is_busy():
+        if (
+            cockpit.is_simulation_running()
+            or generator.is_busy()
+            or table_generator.is_busy()
+        ):
             reasons.append("a job is still running")
         if cockpit.has_unsaved_changes():
             reasons.append("there are unsaved changes")
@@ -256,4 +269,5 @@ class MainWindow(QMainWindow):
         # Stop background threads before the widgets (and their threads) are destroyed.
         cockpit.stop_simulation_and_wait()
         generator.cancel_and_wait()
+        table_generator.cancel_and_wait()
         event.accept()
