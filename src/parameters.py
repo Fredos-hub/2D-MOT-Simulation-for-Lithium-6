@@ -175,6 +175,7 @@ class Parameters:
         self.offset: np.ndarray | None = None
         self.dipoles: list[dict[str, Any]] = []
         self.grid_file: str | None = None
+        self.interaction_table_file: str | None = None
 
         # lasers and boundaries
         self.lasers: list[dict[str, Any]] = []
@@ -258,6 +259,8 @@ class Parameters:
             self.simulated_time / self.default_time_step
         )
         self.interaction = sim["interaction"]
+        # Optional NPZ path for the precomputed-table diagonalizer model (D-12).
+        self.interaction_table_file = sim.get("interaction_table_file", None)
         self.seed = int(sim["random_seed"])
         self.flux = float(sim["flux"] * 1e9)
         self.macro_particle_weight = float(sim["macro_particle_weight"])
@@ -401,7 +404,27 @@ class Parameters:
                     f"Interaction '{self.interaction}' not found in src.interactions"
                 )
             interaction_cls = getattr(interactions, self.interaction)
-            simulation_interaction: LightAtomInteraction = interaction_cls()
+            if self.interaction == "Lithium6DiagonalizerTableInteraction":
+                if not self.interaction_table_file:
+                    raise ParameterError(
+                        "Lithium6DiagonalizerTableInteraction requires an "
+                        "'interaction_table_file' path in the Simulation config"
+                    )
+                try:
+                    data = np.load(self.interaction_table_file)
+                except Exception as exc:
+                    raise ParameterError(
+                        f"Could not load interaction table "
+                        f"'{self.interaction_table_file}': {exc}"
+                    ) from exc
+                table = self._validate_table(data)
+                simulation_interaction: LightAtomInteraction = interaction_cls(
+                    table["b_axis"],
+                    table["pos_table"],
+                    table["strength_table"],
+                )
+            else:
+                simulation_interaction = interaction_cls()
         except Exception as exc:
             msg = f"Failed to initialize interaction: {exc}"
             self._call_status(msg)
@@ -831,6 +854,46 @@ class Parameters:
                 raise ParameterError(f"Grid '{k}' contains non-finite values")
             grid[k] = b
         return grid
+
+    @staticmethod
+    def _validate_table(data):
+        """Validate a loaded diagonalizer NPZ; raise ParameterError on issues.
+
+        Cloned from ``_validate_grid`` (T-04-07 mitigation): required-keys,
+        dtype, uniform 1-D ``b_axis`` with >=2 nodes, exact ``(nb, 6, 12)`` /
+        ``(nb, 6, 12, 3)`` shapes, and finiteness — all checked before the
+        jitclass is constructed. ``np.load`` is left at its default
+        ``allow_pickle=False`` (T-04-06): numeric arrays only, no code exec.
+        """
+        required = ("b_axis", "pos_table", "strength_table")
+        missing = [k for k in required if k not in data]
+        if missing:
+            raise ParameterError(f"Interaction table missing keys: {missing}")
+        b_axis = np.ascontiguousarray(data["b_axis"], dtype=np.float64)
+        if b_axis.ndim != 1 or b_axis.size < 2:
+            raise ParameterError("Table 'b_axis' must be 1D with >=2 nodes")
+        step = b_axis[1] - b_axis[0]
+        if step <= 0 or not np.allclose(
+            np.diff(b_axis), step, rtol=1e-6, atol=1e-12
+        ):
+            raise ParameterError(
+                "Table 'b_axis' must be uniformly spaced and increasing"
+            )
+        nb = b_axis.size
+        table = {"b_axis": b_axis}
+        shapes = {"pos_table": (nb, 6, 12), "strength_table": (nb, 6, 12, 3)}
+        for k, shape in shapes.items():
+            a = np.ascontiguousarray(data[k], dtype=np.float64)
+            if a.shape != shape:
+                raise ParameterError(
+                    f"Table '{k}' shape {a.shape} does not match {shape}"
+                )
+            if not np.isfinite(a).all():
+                raise ParameterError(f"Table '{k}' contains non-finite values")
+            table[k] = a
+        if not np.isfinite(b_axis).all():
+            raise ParameterError("Table 'b_axis' contains non-finite values")
+        return table
 
     # Persistence
     def save_to_file(self, filename: str) -> None:

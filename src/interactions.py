@@ -6,6 +6,7 @@ from numba import float32, float64, int32
 from numba.experimental import jitclass
 
 import src.interaction_wrappers.common as common
+import src.interaction_wrappers.diagonalizer_wrappers as diw
 import src.interaction_wrappers.eighteen_level_wrappers as elw
 import src.interaction_wrappers.four_level_wrappers as flw
 import src.interaction_wrappers.simple_eighteen_level_wrappers as simple_elw
@@ -420,6 +421,205 @@ class Lithium18LevelInteraction:
             ES=excited_state,
             pol=polarization,
             B=magnetic_field_strength,
+        )
+
+
+# Live Li-6 D2 Diagonalizer Model
+
+
+diagonalizer_spec = [
+    ("number_of_ground_states", int32),
+    ("number_of_excited_states", int32),
+]
+
+
+@jitclass(diagonalizer_spec)
+class Lithium6DiagonalizerInteraction:
+    """Live Li-6 D2 diagonalizer: 6 ground, 12 excited states.
+
+    Shifts and strengths come from diagonalizing H(|B|) = H_hfs + |B|*H_Zeeman
+    with np.linalg.eigh inside the JIT boundary (no curve fits). The constant
+    matrices, coupling tensor and diabatic order map are frozen module-level
+    constants in diagonalizer_wrappers, so this jitclass holds NO array state
+    and is thread-safe under prange: no per-instance eigh cache, diagonalized
+    fresh on every call (Pitfall 1).
+    """
+
+    def __init__(self):
+        self.number_of_ground_states = 6
+        self.number_of_excited_states = 12
+
+    def calculate_transition_frequency_shift(
+        self,
+        polarization: int,
+        ground_state: int,
+        excited_state: int,
+        magnetic_field_strength: float,
+    ):
+        """Field-induced Zeeman/HFS shift in Hz (added to transition_frequency)."""
+        return diw.shift(
+            ground_state, excited_state, magnetic_field_strength
+        )
+
+    def calculate_rate(
+        self,
+        saturation_parameters,
+        total_saturation_parameter,
+        natural_linewidth,
+        excitation_rates,
+    ):
+        """Fill excitation_rates in place via the shared kernel."""
+        common._calculate_excitation_rate(
+            saturation_parameters=saturation_parameters,
+            total_saturation_parameter=total_saturation_parameter,
+            natural_linewidth=natural_linewidth,
+            excitation_rates=excitation_rates,
+        )
+
+    def calculate_saturation_parameter(
+        self,
+        polarization: int,
+        magnetic_field_strength: float,
+        ground_state: float,
+        excited_state: float,
+        laser_intensity: float,
+        natural_linewidth: float,
+        saturation_intensity: float,
+        effective_transition_frequency: float,
+        doppler_shift,
+        laser_beam_frequency: float,
+        detuning: float,
+    ):
+        """Diagonalize for the transition strength, then delegate to common."""
+        transition_strength = diw.strength(
+            polarization, ground_state, excited_state, magnetic_field_strength
+        )
+        return common._calculate_saturation_parameter(
+            effective_transition_frequency=effective_transition_frequency,
+            doppler_shift=doppler_shift,
+            laser_beam_frequency=laser_beam_frequency,
+            detuning=detuning,
+            transition_strength=transition_strength,
+            laser_intensity=laser_intensity,
+            natural_linewidth=natural_linewidth,
+        )
+
+    def calculate_branching_ratio(
+        self,
+        polarization: int,
+        ground_state: int,
+        excited_state: int,
+        magnetic_field_strength: float,
+    ):
+        """Decay weight = transition strength (same as the fit models)."""
+        return diw.strength(
+            polarization, ground_state, excited_state, magnetic_field_strength
+        )
+
+
+# Precomputed-Table Li-6 D2 Diagonalizer Model
+
+
+diagonalizer_table_spec = [
+    ("number_of_ground_states", int32),
+    ("number_of_excited_states", int32),
+    ("b_axis", float64[:]),
+    ("pos_table", float64[:, :, :]),
+    ("strength_table", float64[:, :, :, :]),
+]
+
+
+@jitclass(diagonalizer_table_spec)
+class Lithium6DiagonalizerTableInteraction:
+    """Read-only Li-6 D2 diagonalizer: 6 ground, 12 excited states.
+
+    Instead of diagonalizing H(|B|) at every step (the live
+    ``Lithium6DiagonalizerInteraction``), this model 1-D-interpolates a
+    precomputed |B|-table generated offline by
+    ``diagonalizer_setup.generate_table``. The table (line shifts in Hz and
+    cycling-normalized strengths) is loaded and validated in ``parameters.py``
+    and passed into the constructor as plain float64 arrays — the thread-safe,
+    no-runtime-eigh fallback (D-01, D-12).
+    """
+
+    def __init__(self, b_axis, pos_table, strength_table):
+        self.number_of_ground_states = 6
+        self.number_of_excited_states = 12
+        self.b_axis = b_axis
+        self.pos_table = pos_table
+        self.strength_table = strength_table
+
+    def calculate_transition_frequency_shift(
+        self,
+        polarization: int,
+        ground_state: int,
+        excited_state: int,
+        magnetic_field_strength: float,
+    ):
+        """Field-induced shift in Hz, interpolated from the table (pol-free)."""
+        return diw._interp_1d(
+            self.b_axis,
+            self.pos_table[:, ground_state, excited_state],
+            magnetic_field_strength,
+        )
+
+    def calculate_rate(
+        self,
+        saturation_parameters,
+        total_saturation_parameter,
+        natural_linewidth,
+        excitation_rates,
+    ):
+        """Fill excitation_rates in place via the shared kernel."""
+        common._calculate_excitation_rate(
+            saturation_parameters=saturation_parameters,
+            total_saturation_parameter=total_saturation_parameter,
+            natural_linewidth=natural_linewidth,
+            excitation_rates=excitation_rates,
+        )
+
+    def calculate_saturation_parameter(
+        self,
+        polarization: int,
+        magnetic_field_strength: float,
+        ground_state: float,
+        excited_state: float,
+        laser_intensity: float,
+        natural_linewidth: float,
+        saturation_intensity: float,
+        effective_transition_frequency: float,
+        doppler_shift,
+        laser_beam_frequency: float,
+        detuning: float,
+    ):
+        """Interpolate the transition strength, then delegate to common."""
+        transition_strength = diw._interp_1d(
+            self.b_axis,
+            self.strength_table[:, ground_state, excited_state, polarization],
+            magnetic_field_strength,
+        )
+        return common._calculate_saturation_parameter(
+            effective_transition_frequency=effective_transition_frequency,
+            doppler_shift=doppler_shift,
+            laser_beam_frequency=laser_beam_frequency,
+            detuning=detuning,
+            transition_strength=transition_strength,
+            laser_intensity=laser_intensity,
+            natural_linewidth=natural_linewidth,
+        )
+
+    def calculate_branching_ratio(
+        self,
+        polarization: int,
+        ground_state: int,
+        excited_state: int,
+        magnetic_field_strength: float,
+    ):
+        """Decay weight = interpolated transition strength."""
+        return diw._interp_1d(
+            self.b_axis,
+            self.strength_table[:, ground_state, excited_state, polarization],
+            magnetic_field_strength,
         )
 
 
