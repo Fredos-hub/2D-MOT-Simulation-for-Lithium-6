@@ -100,12 +100,12 @@ class MainWindow(QMainWindow):
             self.simulationCockpitTab, "Simulation Cockpit"
         )
         self.mainTabWidget.addTab(self.SampleGeneratorTab, "Sample Generator")
-        self.mainTabWidget.addTab(
-            self.diagonalizerGeneratorTab, "Diagonalizer Tables"
-        )
         self.mainTabWidget.addTab(self.incrementorTab, "Incrementor")
         self.mainTabWidget.addTab(self.plottingTab, "Plotting")
         self.mainTabWidget.addTab(self.spectrumTab, "Spectrum")
+        self.mainTabWidget.addTab(
+            self.diagonalizerGeneratorTab, "Diagonalizer Tables"
+        )
 
         # ToolBar button wiring
         self.toolBar.load_action.triggered.connect(

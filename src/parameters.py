@@ -860,10 +860,12 @@ class Parameters:
         """Validate a loaded diagonalizer NPZ; raise ParameterError on issues.
 
         Cloned from ``_validate_grid`` (T-04-07 mitigation): required-keys,
-        dtype, uniform 1-D ``b_axis`` with >=2 nodes, exact ``(nb, 6, 12)`` /
-        ``(nb, 6, 12, 3)`` shapes, and finiteness — all checked before the
-        jitclass is constructed. ``np.load`` is left at its default
-        ``allow_pickle=False`` (T-04-06): numeric arrays only, no code exec.
+        dtype, strictly-increasing 1-D ``b_axis`` with >=2 nodes (non-uniform
+        allowed — the table is log-dense at low field, interpolated by binary
+        search), exact ``(nb, 6, 12)`` / ``(nb, 6, 12, 3)`` shapes, and
+        finiteness — all checked before the jitclass is constructed.
+        ``np.load`` is left at its default ``allow_pickle=False`` (T-04-06):
+        numeric arrays only, no code exec.
         """
         required = ("b_axis", "pos_table", "strength_table")
         missing = [k for k in required if k not in data]
@@ -872,13 +874,8 @@ class Parameters:
         b_axis = np.ascontiguousarray(data["b_axis"], dtype=np.float64)
         if b_axis.ndim != 1 or b_axis.size < 2:
             raise ParameterError("Table 'b_axis' must be 1D with >=2 nodes")
-        step = b_axis[1] - b_axis[0]
-        if step <= 0 or not np.allclose(
-            np.diff(b_axis), step, rtol=1e-6, atol=1e-12
-        ):
-            raise ParameterError(
-                "Table 'b_axis' must be uniformly spaced and increasing"
-            )
+        if not np.all(np.diff(b_axis) > 0):
+            raise ParameterError("Table 'b_axis' must be strictly increasing")
         nb = b_axis.size
         table = {"b_axis": b_axis}
         shapes = {"pos_table": (nb, 6, 12), "strength_table": (nb, 6, 12, 3)}

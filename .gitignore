@@ -22,3 +22,8 @@ pb_detscan_runs/
 pb_powerscan_runs/
 all_drivers.log
 *.pdf
+manual/
+references/
+util/ag_pohl*
+util/diagonalizer*
+util/benchmarking

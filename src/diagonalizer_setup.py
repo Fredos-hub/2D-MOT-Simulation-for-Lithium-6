@@ -422,12 +422,35 @@ def li6_d2_constants():
     return get_li6_setup()
 
 
+# |B| (T) where the table grid switches from log-dense to linear. Shared with
+# the interpolator's O(1) index (diagonalizer_wrappers._TABLE_KNEE) — keep in sync.
+TABLE_B_KNEE = 2e-4
+
+
+def _table_b_axis(b_min, b_max, n_nodes, b_knee=TABLE_B_KNEE):
+    """Non-uniform |B| grid for the precomputed table: log-dense from b_min to
+    b_knee (through the <~1 G regime where the excited mixing is most volatile,
+    matching the live order-map grid) then linear to b_max. Strictly
+    increasing. Falls back to a uniform grid when the range does not straddle
+    b_knee or n_nodes is tiny. A zero b_min floors to 1e-6 T for the log
+    segment (fields below that clamp to the first node in _bracket)."""
+    lo = b_min if b_min > 0.0 else 1e-6
+    if n_nodes < 4 or not (lo < b_knee < b_max):
+        return np.linspace(b_min, b_max, n_nodes)
+    n_low = n_nodes // 2
+    n_high = n_nodes - n_low
+    b_low = np.logspace(np.log10(lo), np.log10(b_knee), n_low, endpoint=False)
+    b_high = np.linspace(b_knee, b_max, n_high)
+    return np.concatenate([b_low, b_high])
+
+
 def generate_table(constants, b_min=0.0, b_max=1.0, n_nodes=200,
                    out_path="interaction_tables/li6_d2_table.npz"):
     """Sweep |B| and write a precomputed diagonalizer table as an NPZ (D-12).
 
-    For each of ``n_nodes`` uniform nodes over ``[b_min, b_max]`` (default
-    0-1 T, D-06) the live diagonalizer is evaluated: line positions minus the
+    For each of ``n_nodes`` non-uniform nodes over ``[b_min, b_max]`` (log-dense
+    below ~1 G, then linear; default 0-1 T, D-06) the live diagonalizer is
+    evaluated: line positions minus the
     B=0 center (Hz) go into ``pos_table[nb, 6, 12]`` and cycling-normalized
     (=0.25) strengths into ``strength_table[nb, 6, 12, 3]``. The live @njit
     helpers (``diw.shift`` / ``diw.strength``) are reused so the table
@@ -441,7 +464,8 @@ def generate_table(constants, b_min=0.0, b_max=1.0, n_nodes=200,
 
     ng = int(constants["Hg_hfs"].shape[0])   # 6 ground states
     ne = int(constants["He_hfs"].shape[0])    # 12 excited states
-    b_axis = np.linspace(b_min, b_max, n_nodes)
+    b_axis = _table_b_axis(b_min, b_max, n_nodes)
+    n_nodes = b_axis.shape[0]
     pos_table = np.empty((n_nodes, ng, ne), dtype=np.float64)
     strength_table = np.empty((n_nodes, ng, ne, 3), dtype=np.float64)
     for k, B in enumerate(b_axis):

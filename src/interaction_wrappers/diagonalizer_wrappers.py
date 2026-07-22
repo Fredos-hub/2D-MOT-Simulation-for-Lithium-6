@@ -82,26 +82,32 @@ def _nearest_node(B):
 
 
 @njit
-def _interp_1d(b_axis, values, b):
-    """Linear 1-D interpolation of ``values`` over a uniform ``b_axis`` at |B|.
+def _bracket(b_axis, b):
+    """Bracketing (lo, hi, frac) for linear interp of a sorted ``b_axis`` at |B|.
 
-    ``b_axis`` is assumed uniform and increasing (validated at load time). Out
-    of range |B| is clamped to the end nodes. Used by the precomputed-table
-    model to look up per-transition line shifts / strengths without any runtime
-    diagonalization.
+    ``b_axis`` is strictly increasing but NOT necessarily uniform (the table is
+    log-dense below ~1 G, validated at load time), so the interval is found by
+    binary search; out-of-range |B| clamps to an endpoint (lo == hi, frac 0).
+    Callers read the two bracketing table scalars directly. NOTE: the table
+    model's per-substep cost is dominated NOT by this helper but by the repeated
+    jitclass array-attribute reads (self.b_axis/pos_table/strength_table) in the
+    caller — a numba refcount overhead the fitted model avoids by using
+    module-level data. Fixing that needs a batched-lookup API, not a change here.
     """
     n = b_axis.shape[0]
     if b <= b_axis[0]:
-        return values[0]
+        return 0, 0, 0.0
     if b >= b_axis[n - 1]:
-        return values[n - 1]
-    spacing = b_axis[1] - b_axis[0]
-    f = (b - b_axis[0]) / spacing
-    k = int(f)
-    if k > n - 2:
-        k = n - 2
-    frac = f - k
-    return values[k] * (1.0 - frac) + values[k + 1] * frac
+        return n - 1, n - 1, 0.0
+    lo = 0
+    hi = n - 1
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if b_axis[mid] <= b:
+            lo = mid
+        else:
+            hi = mid
+    return lo, hi, (b - b_axis[lo]) / (b_axis[hi] - b_axis[lo])
 
 
 @njit

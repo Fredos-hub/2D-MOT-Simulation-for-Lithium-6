@@ -30,10 +30,10 @@ GUI_DIR = REPO_ROOT / "GUI"
 EXPECTED_TABS = [
     "Simulation Cockpit",
     "Sample Generator",
-    "Diagonalizer Tables",
     "Incrementor",
     "Plotting",
     "Spectrum",
+    "Diagonalizer Tables",
 ]
 
 # Diagonalizer models added in phase 04; both must auto-appear in the

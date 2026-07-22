@@ -557,10 +557,11 @@ class Lithium6DiagonalizerTableInteraction:
         magnetic_field_strength: float,
     ):
         """Field-induced shift in Hz, interpolated from the table (pol-free)."""
-        return diw._interp_1d(
-            self.b_axis,
-            self.pos_table[:, ground_state, excited_state],
-            magnetic_field_strength,
+        lo, hi, f = diw._bracket(self.b_axis, magnetic_field_strength)
+        p = self.pos_table
+        return (
+            p[lo, ground_state, excited_state] * (1.0 - f)
+            + p[hi, ground_state, excited_state] * f
         )
 
     def calculate_rate(
@@ -593,10 +594,11 @@ class Lithium6DiagonalizerTableInteraction:
         detuning: float,
     ):
         """Interpolate the transition strength, then delegate to common."""
-        transition_strength = diw._interp_1d(
-            self.b_axis,
-            self.strength_table[:, ground_state, excited_state, polarization],
-            magnetic_field_strength,
+        lo, hi, f = diw._bracket(self.b_axis, magnetic_field_strength)
+        s = self.strength_table
+        transition_strength = (
+            s[lo, ground_state, excited_state, polarization] * (1.0 - f)
+            + s[hi, ground_state, excited_state, polarization] * f
         )
         return common._calculate_saturation_parameter(
             effective_transition_frequency=effective_transition_frequency,
@@ -616,10 +618,11 @@ class Lithium6DiagonalizerTableInteraction:
         magnetic_field_strength: float,
     ):
         """Decay weight = interpolated transition strength."""
-        return diw._interp_1d(
-            self.b_axis,
-            self.strength_table[:, ground_state, excited_state, polarization],
-            magnetic_field_strength,
+        lo, hi, f = diw._bracket(self.b_axis, magnetic_field_strength)
+        s = self.strength_table
+        return (
+            s[lo, ground_state, excited_state, polarization] * (1.0 - f)
+            + s[hi, ground_state, excited_state, polarization] * f
         )
 
 

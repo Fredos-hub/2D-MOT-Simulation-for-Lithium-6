@@ -43,6 +43,14 @@ DEFAULT_OUTPUT = "interaction_tables/li6_d2_table.npz"
 POLARIZATIONS = ("σ⁻ (q=0)", "π (q=1)", "σ⁺ (q=2)")
 
 
+def _fmt_half(x) -> str:
+    """Format a (half-)integer angular-momentum value as a fraction string."""
+    x = float(x)
+    if abs(x - round(x)) < 1e-6:
+        return str(int(round(x)))
+    return f"{int(round(2 * x))}/2"
+
+
 class DiagonalizerGeneratorTab(QWidget):
     tableCreated = pyqtSignal(str)
 
@@ -137,17 +145,25 @@ class DiagonalizerGeneratorTab(QWidget):
         box = QGroupBox("Transition preview")
         layout = QVBoxLayout(box)
 
-        # Transition selectors: ground state, excited state, polarization.
+        # Transition selectors labeled with (F, mF) from the diagonalizer's
+        # automated index -> quantum-number map (ds.GROUND_*/EXCITED_*), so they
+        # are self-documenting and generalize to any manifold. After choosing
+        # GS + polarization, only ES giving a nonzero (m_F-conserving)
+        # transition are offered (see _repopulate_es).
         sel = QHBoxLayout()
         self.gs_combo = QComboBox()
-        self.gs_combo.addItems([f"GS{i}" for i in range(6)])
-        self.gs_combo.setCurrentIndex(5)
-        self.es_combo = QComboBox()
-        self.es_combo.addItems([f"ES{i}" for i in range(12)])
-        self.es_combo.setCurrentIndex(11)
+        for i in range(len(ds.GROUND_MF)):
+            self.gs_combo.addItem(
+                f"GS{i}  F={_fmt_half(ds.GROUND_F[i])} "
+                f"m={_fmt_half(ds.GROUND_MF[i])}", i
+            )
         self.pol_combo = QComboBox()
-        self.pol_combo.addItems(POLARIZATIONS)
-        self.pol_combo.setCurrentIndex(2)  # σ⁺, the cycling default
+        for p, name in enumerate(POLARIZATIONS):
+            self.pol_combo.addItem(name, p)
+        self.es_combo = QComboBox()  # filled by _repopulate_es()
+        for combo in (self.gs_combo, self.es_combo, self.pol_combo):
+            combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+            combo.setMinimumWidth(150)
         for label, combo in (
             ("Ground:", self.gs_combo),
             ("Excited:", self.es_combo),
@@ -167,8 +183,13 @@ class DiagonalizerGeneratorTab(QWidget):
         layout.addWidget(self._canvas)
 
         self._preview_data = None  # cached NPZ arrays for re-plotting
-        for combo in (self.gs_combo, self.es_combo, self.pol_combo):
-            combo.currentIndexChanged.connect(self._redraw_preview)
+        # Default to the stretched cycling ground GS5 + σ⁺ (-> ES11).
+        self.gs_combo.setCurrentIndex(5)
+        self.pol_combo.setCurrentIndex(2)
+        self._repopulate_es()
+        self.gs_combo.currentIndexChanged.connect(self._on_transition_changed)
+        self.pol_combo.currentIndexChanged.connect(self._on_transition_changed)
+        self.es_combo.currentIndexChanged.connect(self._redraw_preview)
 
         ax = self._fig.add_subplot(111)
         ax.grid(True, alpha=0.25)
@@ -265,6 +286,37 @@ class DiagonalizerGeneratorTab(QWidget):
         self.progress_bar.setValue(0)
         self.status_label.setText("Status: Cancelled.")
 
+    def _on_transition_changed(self, *_) -> None:
+        self._repopulate_es()
+        self._redraw_preview()
+
+    def _repopulate_es(self) -> None:
+        """Offer only ES that give a nonzero transition for GS + polarization.
+
+        m_F is conserved at every field (Δm_F = q), so the coupling — and hence
+        the strength — is exactly zero unless m_F(ES) = m_F(GS) + q. This makes
+        the m_F rule the precise "strength != 0 for some B" filter, with no
+        dependence on grid resolution (no coarse-grid artifacts), and it still
+        admits the field-induced ΔF=2 lines (they conserve m_F).
+        """
+        gs = self.gs_combo.currentData()
+        pol = self.pol_combo.currentData()
+        if gs is None or pol is None:
+            return
+        target_mf = ds.GROUND_MF[gs] + (pol - 1)  # q = -1/0/+1 for σ-/π/σ+
+        prev = self.es_combo.currentData()
+        self.es_combo.blockSignals(True)
+        self.es_combo.clear()
+        for j in range(len(ds.EXCITED_MF)):
+            if abs(ds.EXCITED_MF[j] - target_mf) < 1e-6:
+                self.es_combo.addItem(
+                    f"ES{j}  F={_fmt_half(ds.EXCITED_F[j])} "
+                    f"m={_fmt_half(ds.EXCITED_MF[j])}", j
+                )
+        idx = self.es_combo.findData(prev)
+        self.es_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self.es_combo.blockSignals(False)
+
     def _update_preview(self, path: str) -> None:
         """Cache the generated NPZ, then plot the selected transition."""
         try:
@@ -283,9 +335,11 @@ class DiagonalizerGeneratorTab(QWidget):
         """Plot shift + strength vs |B| for the currently selected line."""
         if not self._preview_data:
             return
-        gs = self.gs_combo.currentIndex()
-        es = self.es_combo.currentIndex()
-        pol = self.pol_combo.currentIndex()
+        gs = self.gs_combo.currentData()
+        es = self.es_combo.currentData()
+        pol = self.pol_combo.currentData()
+        if gs is None or es is None or pol is None:
+            return
         b_axis = self._preview_data["b_axis"]
         shift = self._preview_data["pos_table"][:, gs, es] / 1e6  # MHz
         strength = self._preview_data["strength_table"][:, gs, es, pol]
@@ -295,12 +349,12 @@ class DiagonalizerGeneratorTab(QWidget):
         ax.plot(b_axis, shift, color="C0", label="line shift")
         ax.set_xlabel("|B| (T)")
         ax.set_ylabel("Line shift (MHz)", color="C0")
-        ax.set_title(f"GS{gs} → ES{es}")
+        ax.set_title(f"GS{gs} → ES{es}  ({POLARIZATIONS[pol]})")
         ax.grid(True, alpha=0.25)
 
         ax2 = ax.twinx()
         ax2.plot(b_axis, strength, color="C1", label="strength")
-        ax2.set_ylabel(f"{POLARIZATIONS[pol]} strength |CG|²", color="C1")
+        ax2.set_ylabel("transition strength", color="C1")
 
         self._ax = ax
         self._canvas.draw_idle()
