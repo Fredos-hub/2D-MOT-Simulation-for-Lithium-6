@@ -24,7 +24,8 @@ class ECSAtoms:
     magnetic_field_strength : ndarray (n,)   float64
     max_step_lengths : ndarray (n,)  float64
     subjective_time : ndarray (n,)   float64
-    time_overshoot : ndarray (n,)    float64  – pending event time carried across steps
+    time_overshoot : ndarray (n,)    float64  – per-atom injection clock (pre-activation)
+    pending_optical_depth : ndarray (n,)  float64  – remaining optical depth τ carried across substeps
     status : ndarray (n,)            int32    – -1 inactive, 1 alive, 0 dead
     location_tags : ndarray (n,)     int32
     groundstates : ndarray (n,)      int32
@@ -50,6 +51,7 @@ class ECSAtoms:
         self.max_step_lengths = np.zeros(n, dtype=np.float64)
         self.subjective_time = np.zeros(n, dtype=np.float64)
         self.time_overshoot = np.zeros(n, dtype=np.float64)
+        self.pending_optical_depth = np.zeros(n, dtype=np.float64)
         self.status = np.full(n, -1, dtype=np.int32)
         self.location_tags = np.zeros(n, dtype=np.int32)
         self.groundstates = np.zeros(n, dtype=np.int32)

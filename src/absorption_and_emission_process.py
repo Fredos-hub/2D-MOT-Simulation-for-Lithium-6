@@ -91,7 +91,7 @@ def absorption_and_emission_default_timestep(
     max_step_lengths_arr = simulation_atoms.max_step_lengths
     b_vec_arr = simulation_atoms.magnetic_field_vectors
     b_norm_arr = simulation_atoms.magnetic_field_strength
-    time_overshoot_arr = simulation_atoms.time_overshoot
+    pending_tau_arr = simulation_atoms.pending_optical_depth
 
     # THREAD-LOCAL WORKSPACES: allocate once per call (shape = (nthreads, ...))
     nthreads = get_num_threads()
@@ -257,18 +257,18 @@ def absorption_and_emission_default_timestep(
 
             remaining_time = default_timestep - accumulated_times[idx]
 
-            # pending overshoot
-            pending = time_overshoot_arr[atom_id]
-            has_pending = pending > 0.0
+            # Pending optical-depth quota τ (dimensionless, rate-invariant).
+            pending_tau = pending_tau_arr[atom_id]
+            has_pending = pending_tau > 0.0
 
-            if (total_excitation_rate <= 0.0) and (not has_pending):
-                # motion-limited
+            if total_excitation_rate <= 0.0:
+                # Locally dark: no optical depth accrues. Advance ballistically
+                # and carry any pending τ unchanged (never resample here).
                 motion_dt = magnetic_field.calculate_max_time_step(
                     atom_max_step_length, vel
                 )
                 dt = motion_dt
                 if dt > remaining_time:
-                    time_overshoot_arr[atom_id] = 0.0
                     dt = remaining_time
                     accumulated_times[idx] = default_timestep
                 else:
@@ -279,12 +279,14 @@ def absorption_and_emission_default_timestep(
                 )
                 continue
 
-            # choose event time (use pending or sample)
+            # rate > 0: draw τ once per event, then derive the event time from
+            # the *current* local rate each substep (τ is carried, not t_event).
             if has_pending:
-                t_event = pending
+                tau = pending_tau
             else:
-                r = np.random.random()
-                t_event = -math.log(r) / total_excitation_rate
+                tau = -math.log(np.random.random())
+
+            t_event = tau / total_excitation_rate
 
             mean_free_path_length = magnetic_field.calculate_mean_free_path(
                 t_event, vel
@@ -294,7 +296,7 @@ def absorption_and_emission_default_timestep(
             )
 
             if math.fabs(mean_free_path_length) >= atom_max_step_length:
-                # geometry-limited motion advance
+                # geometry-limited motion advance; drain τ by rate·dt
                 dt = motion_dt
                 if dt > remaining_time:
                     dt = remaining_time
@@ -306,16 +308,10 @@ def absorption_and_emission_default_timestep(
                     positions_arr, velocities_arr, atom_id, vel, dt
                 )
 
-                if has_pending:
-                    new_pending = pending - dt
-                    if new_pending < 0.0:
-                        new_pending = 0.0
-                    time_overshoot_arr[atom_id] = new_pending
-                else:
-                    if t_event > dt:
-                        time_overshoot_arr[atom_id] = t_event - dt
-                    else:
-                        time_overshoot_arr[atom_id] = 0.0
+                new_tau = tau - total_excitation_rate * dt
+                if new_tau < 0.0:
+                    new_tau = 0.0
+                pending_tau_arr[atom_id] = new_tau
 
                 continue
 
@@ -327,7 +323,7 @@ def absorption_and_emission_default_timestep(
 
                 excitation_counter[atom_id] += 1
                 accumulated_times[idx] += t_event
-                time_overshoot_arr[atom_id] = 0.0
+                pending_tau_arr[atom_id] = 0.0
 
                 # fast flattened selection over the same excitation_rates buffer
                 idx_laser, atom_excited_state, exciting_polarization = (
@@ -377,15 +373,18 @@ def absorption_and_emission_default_timestep(
 
                 continue
             else:
-                # event beyond this default timestep: store overshoot
+                # event beyond this default timestep: drain τ by rate·delta
+                # and carry the remainder to the next step.
                 delta = remaining_time
                 _advance_with_gravity(
                     positions_arr, velocities_arr, atom_id, vel, delta
                 )
 
-                time_overshoot_arr[atom_id] = t_event - delta
+                new_tau = tau - total_excitation_rate * delta
+                if new_tau < 0.0:
+                    new_tau = 0.0
+                pending_tau_arr[atom_id] = new_tau
                 accumulated_times[idx] = default_timestep
-                # will be handled next step
 
         # end while for atom
 

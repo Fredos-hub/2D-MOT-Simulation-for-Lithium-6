@@ -35,6 +35,7 @@ _ATOM_ARRAYS = (
     "groundstates",
     "status",
     "time_overshoot",
+    "pending_optical_depth",
     "subjective_time",
     "magnetic_field_vectors",
     "magnetic_field_strength",

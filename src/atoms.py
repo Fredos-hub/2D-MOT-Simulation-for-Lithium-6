@@ -39,7 +39,11 @@ atom_spec = [
         float64[:],
     ),  # Maximum step length for the Atom. Dependent on Magnetic Field at position.
     ("subjective_time", float64[:]),  # Subjective clock of each atom (n)
-    ("time_overshoot", float64[:]),
+    ("time_overshoot", float64[:]),  # injection clock only (pre-activation)
+    (
+        "pending_optical_depth",
+        float64[:],
+    ),  # τ = -ln(r): event carry-over (post-activation)
     ("status", int32[:]),  # Status (alive=1, dead=0) for each atom (n)
     (
         "location_tags",
@@ -130,6 +134,7 @@ class Li6:
         # Each atom has its own subjective clock (initialized to zero)
         self.subjective_time = np.zeros(self.n, dtype=np.float64)
         self.time_overshoot = np.zeros(self.n, dtype=np.float64)
+        self.pending_optical_depth = np.zeros(self.n, dtype=np.float64)
         # Initialize status: -1 indicates "inactive" for every atom initially.
         self.status = np.full_like(self.max_step_lengths, -1, dtype=np.int32)
 
@@ -267,6 +272,7 @@ class Sr88:
 
         # Each atom has its own subjective clock (initialized to zero)
         self.subjective_time = np.zeros(self.n, dtype=np.float64)
+        self.pending_optical_depth = np.zeros(self.n, dtype=np.float64)
 
         # Initialize status: 1 indicates "alive" for every atom initially.
         self.status = np.ones(self.n, dtype=np.int32)
