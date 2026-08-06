@@ -872,18 +872,18 @@ class SimpleEighteenLevelInteraction:
                 0.8004,
                 0.9783,
                 0.8004,
-                1.1111,
+                2.2250,
                 0.9783,
                 0.8004,
                 0.9783,
-                1.1111,
+                2.2250,
                 0.8004,
                 0.9783,
                 0.8004,
                 0.8004,
             ],
             dtype=np.float32,
-        )  # gF values for excited states (F=1/2 entries use Landé 10/9)
+        )  # gF values for excited states (indices 3, 7 = 2P3/2 F'=1/2)
 
         self.transition_strength_table = np.zeros(
             (self.number_of_ground_states, self.number_of_excited_states, 3),
