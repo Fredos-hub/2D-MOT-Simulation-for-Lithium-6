@@ -22,7 +22,7 @@ UDEM_DIR = "/home/fredo/Schreibtisch/Test/Zeemanslower"
 I = 1
 J_GS, J_ES = 1 / 2, 3 / 2
 G_J_GS, G_J_ES = 2.002, 1.335
-A_GS, A_ES = 150e6, -1.15e6      # magnetic-dipole constant [Hz]
+A_GS, A_ES = 152.1368e6, -1.15e6  # magnetic-dipole constant [Hz]
 B_GS, B_ES = 0.0e6, -0.1e6       # electric-quadrupole constant [Hz]
 HAUF, ISOVER = 1, 0
 

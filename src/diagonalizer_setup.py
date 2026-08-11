@@ -37,7 +37,7 @@ BOHR_MAGNETON = scc.physical_constants["Bohr magneton"][0]
 # Li-6 D2 reference constants (udem_code __main__). Freqs in Hz, B in Tesla.
 LI6_D2 = {
     "I": 1.0,
-    "ground": {"J": 0.5, "g_J": 2.002, "A": 150e6, "B_hfs": 0.0},
+    "ground": {"J": 0.5, "g_J": 2.002, "A": 152.1368e6, "B_hfs": 0.0},
     "excited": {"J": 1.5, "g_J": 1.335, "A": -1.15e6, "B_hfs": -0.1e6},
 }
 

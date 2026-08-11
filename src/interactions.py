@@ -834,6 +834,7 @@ simple_eighteen_level_spec = [
     ("excited_gf", float32[:]),
     ("mu_B", float64),
     ("transition_strength_table", float32[:, :, :]),
+    ("excited_b0", float32[:]),
 ]
 
 
@@ -885,6 +886,15 @@ class SimpleEighteenLevelInteraction:
             dtype=np.float32,
         )  # gF values for excited states (indices 3, 7 = 2P3/2 F'=1/2)
 
+        # Excited-state B=0 HFS shift per excited state, rel. F'=5/2 (Hz), from
+        # the diagonalizer (Li-6 2P3/2 A=-1.15, B=-0.10 MHz): F'=5/2 -> 0,
+        # F'=3/2 -> +3.0 MHz, F'=1/2 -> +4.5 MHz. Resolves the excited HFS the
+        # flat two-offset model ignored.
+        self.excited_b0 = np.array(
+            [0.0, 3.0e6, 0.0, 4.5e6, 3.0e6, 0.0, 3.0e6, 4.5e6, 0.0, 3.0e6, 0.0, 0.0],
+            dtype=np.float32,
+        )
+
         self.transition_strength_table = np.zeros(
             (self.number_of_ground_states, self.number_of_excited_states, 3),
             dtype=np.float32,
@@ -924,6 +934,7 @@ class SimpleEighteenLevelInteraction:
                 excited_mf=self.excited_mf[excited_state],
                 ground_gf=self.ground_gf[ground_state],
                 excited_gf=self.excited_gf[excited_state],
+                excited_b0=self.excited_b0[excited_state],
             )
         )
 
