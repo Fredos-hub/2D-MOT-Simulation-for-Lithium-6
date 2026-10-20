@@ -39,6 +39,11 @@ def absorption_and_emission_default_timestep(
     default_timestep: float,
     excitation_hist: np.ndarray = None,
     substep_counter: np.ndarray = None,
+    step_cap: float = 0.0,
+    step_max: float = 1e-4,
+    trapezoid: bool = False,
+    trap_rate: np.ndarray = None,
+    trap_dt: np.ndarray = None,
 ) -> None:
     """Advance the given atoms over one default timestep (core physics kernel).
 
@@ -127,13 +132,40 @@ def absorption_and_emission_default_timestep(
         eff_trans_freq = work_eff_trans_freq[tid]
         branching_ratios = work_branch[tid]
 
+        # step_cap > 0 (T, experimental): sub-step length set by the change of the field VECTOR seen along
+        # the path (detuning and, near B = 0, field rotation): |dB| per sub-step ~ step_cap, 1 um <= L <=
+        # step_max, growth <= x2 per sub-step. step_cap = 0: the |B| tiers of the field model.
+        last_ds = 0.0
+
         # main loop for this atom
         while accumulated_times[idx] < default_timestep:
-            substep_counter[tid] += 1  # additive benchmark instrumentation
+            # one cache line (8 x int64) per thread: no false sharing
+            substep_counter[tid * 8] += 1
             pos = positions_arr[atom_id]
             vel = velocities_arr[atom_id]
+            bx0 = b_vec_arr[atom_id, 0]
+            by0 = b_vec_arr[atom_id, 1]
+            bz0 = b_vec_arr[atom_id, 2]
             magnetic_field.calculate_magnetic_field(simulation_atoms, atom_id)
-            magnetic_field.calculate_max_step_length(simulation_atoms, atom_id)
+            prev_len = max_step_lengths_arr[atom_id]
+            if step_cap <= 0.0 or prev_len <= 0.0:
+                # old rule; with step_cap > 0 it only seeds a new atom
+                magnetic_field.calculate_max_step_length(
+                    simulation_atoms, atom_id
+                )
+            elif last_ds > 0.0:
+                db = math.sqrt(
+                    (b_vec_arr[atom_id, 0] - bx0) ** 2
+                    + (b_vec_arr[atom_id, 1] - by0) ** 2
+                    + (b_vec_arr[atom_id, 2] - bz0) ** 2
+                )
+                if db > 0.0:
+                    new_len = 0.9 * step_cap * last_ds / db
+                else:
+                    new_len = 2.0 * prev_len
+                new_len = min(new_len, 2.0 * prev_len, step_max)
+                max_step_lengths_arr[atom_id] = max(new_len, 1e-6)
+            speed = math.sqrt(vel[0] ** 2 + vel[1] ** 2 + vel[2] ** 2)
             atom_ground_state = groundstates_arr[atom_id]
             atom_max_step_length = max_step_lengths_arr[atom_id]
             b_vec = b_vec_arr[atom_id]
@@ -255,6 +287,14 @@ def absorption_and_emission_default_timestep(
                     for pol in range(3):
                         total_excitation_rate += excitation_rates[j, ex, pol]
 
+            # trapezoid: the optical depth drained over the last sub-step (rate at its start x dt) is corrected
+            # by 0.5 * (rate now - rate then) * dt once the end-point rate is known (= start of this sub-step).
+            # Per-atom trap_rate / trap_dt carry this across steps; reset after an event and (in Simulation)
+            # at laser switches. A corrected tau <= 0 means the event is due now.
+            if trapezoid and trap_dt[atom_id] > 0.0 and pending_tau_arr[atom_id] > 0.0:
+                corr = 0.5 * (total_excitation_rate - trap_rate[atom_id]) * trap_dt[atom_id]
+                pending_tau_arr[atom_id] = max(pending_tau_arr[atom_id] - corr, 1e-300)
+
             remaining_time = default_timestep - accumulated_times[idx]
 
             # Pending optical-depth quota τ (dimensionless, rate-invariant).
@@ -277,6 +317,10 @@ def absorption_and_emission_default_timestep(
                 _advance_with_gravity(
                     positions_arr, velocities_arr, atom_id, vel, dt
                 )
+                last_ds = speed * dt
+                if trapezoid:
+                    trap_rate[atom_id] = 0.0
+                    trap_dt[atom_id] = dt
                 continue
 
             # rate > 0: draw τ once per event, then derive the event time from
@@ -307,11 +351,15 @@ def absorption_and_emission_default_timestep(
                 _advance_with_gravity(
                     positions_arr, velocities_arr, atom_id, vel, dt
                 )
+                last_ds = speed * dt
 
                 new_tau = tau - total_excitation_rate * dt
                 if new_tau < 0.0:
                     new_tau = 0.0
                 pending_tau_arr[atom_id] = new_tau
+                if trapezoid:
+                    trap_rate[atom_id] = total_excitation_rate
+                    trap_dt[atom_id] = dt
 
                 continue
 
@@ -320,10 +368,13 @@ def absorption_and_emission_default_timestep(
                 _advance_with_gravity(
                     positions_arr, velocities_arr, atom_id, vel, t_event
                 )
+                last_ds = speed * t_event
 
                 excitation_counter[atom_id] += 1
                 accumulated_times[idx] += t_event
                 pending_tau_arr[atom_id] = 0.0
+                if trapezoid:
+                    trap_dt[atom_id] = 0.0
 
                 # fast flattened selection over the same excitation_rates buffer
                 idx_laser, atom_excited_state, exciting_polarization = (
@@ -379,11 +430,15 @@ def absorption_and_emission_default_timestep(
                 _advance_with_gravity(
                     positions_arr, velocities_arr, atom_id, vel, delta
                 )
+                last_ds = speed * delta
 
                 new_tau = tau - total_excitation_rate * delta
                 if new_tau < 0.0:
                     new_tau = 0.0
                 pending_tau_arr[atom_id] = new_tau
+                if trapezoid:
+                    trap_rate[atom_id] = total_excitation_rate
+                    trap_dt[atom_id] = delta
                 accumulated_times[idx] = default_timestep
 
         # end while for atom

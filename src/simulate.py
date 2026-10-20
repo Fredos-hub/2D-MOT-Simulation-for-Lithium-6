@@ -1,5 +1,8 @@
 """Simulation: step loop, atom activation, boundary checks, and lifecycle."""
 
+import os
+
+import numba
 import numpy as np
 from numba import get_num_threads, njit
 
@@ -85,7 +88,17 @@ class Simulation:
         # Benchmark instrumentation (plan 04-06): one int64 cell per Numba
         # thread. The kernel increments substep_counter[tid] once per inner
         # substep; the total over the run is read via `total_substeps`.
-        self.substep_counter = np.zeros(get_num_threads(), dtype=np.int64)
+        # Padded: one cache line (8 cells) per thread, the kernel writes [tid * 8].
+        self.substep_counter = np.zeros(get_num_threads() * 8, dtype=np.int64)
+        # Experimental field-change sub-step control (0 = |B| tiers) and chunk size.
+        self.step_cap = float(os.environ.get("MOT_STEP_CAP_T", "0"))
+        self.step_max = float(os.environ.get("MOT_STEP_MAX_M", "1e-4"))
+        self.chunk_size = int(os.environ.get("MOT_CHUNK", "0"))
+        # Experimental trapezoid correction of the optical-depth drain (per-atom state across steps).
+        self.trapezoid = os.environ.get("MOT_TRAPEZOID", "0") == "1"
+        self.trap_rate = np.zeros(self.simulation_atoms.n, dtype=np.float64)
+        self.trap_dt = np.zeros(self.simulation_atoms.n, dtype=np.float64)
+        self._last_active = None
 
     @property
     def total_substeps(self) -> int:
@@ -101,6 +114,8 @@ class Simulation:
             Polled between steps; if it returns True the warmup raises to
             abort early.
         """
+        # thread-local setting: warmup runs in the thread that also calls step()
+        numba.set_parallel_chunksize(self.chunk_size)
         for _ in range(2):
             if stop_callback and stop_callback():
                 raise Exception("Canceled during warmup.")
@@ -115,7 +130,13 @@ class Simulation:
                 default_timestep=self.default_timestep,
                 excitation_hist=self.excitation_hist,
                 substep_counter=self.substep_counter,
+                step_cap=self.step_cap,
+                step_max=self.step_max,
+                trapezoid=self.trapezoid,
+                trap_rate=self.trap_rate,
+                trap_dt=self.trap_dt,
             )
+        self.trap_dt[:] = 0.0  # warmup moved atom 0
         print("Warmup step completed.")
 
     def step(self, i):
@@ -157,6 +178,9 @@ class Simulation:
         # 2) Apply laser active intervals: zero inactive beams, restore active ones.
         # Idempotent each step, so this stays correct across checkpoint resume.
         active = (self.laser_on_step <= i) & (i < self.laser_off_step)
+        if self._last_active is not None and np.any(active != self._last_active):
+            self.trap_dt[:] = 0.0  # rate jumps at a switch: no averaging across it
+        self._last_active = active
         self.lasers.beam_powers[:] = np.where(
             active, self._base_beam_powers, 0.0
         )
@@ -175,6 +199,11 @@ class Simulation:
             default_timestep=self.default_timestep,
             excitation_hist=self.excitation_hist,
             substep_counter=self.substep_counter,
+            step_cap=self.step_cap,
+            step_max=self.step_max,
+            trapezoid=self.trapezoid,
+            trap_rate=self.trap_rate,
+            trap_dt=self.trap_dt,
         )
 
         # 5) Advance the step counter

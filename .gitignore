@@ -28,3 +28,6 @@ references/
 util/ag_pohl*
 util/diagonalizer*
 util/benchmarking
+
+# graphify knowledge graph output
+graphify-out/
