@@ -1,18 +1,16 @@
 .vscode
 .venv/
-*.gif
-simulation_results/
-field_grids/
-interaction_tables/
+.claude/
+.coverage
+.pytest_cache/
+.ruff_cache/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*.nbi
+*.nbc
+*.gif
+*.pdf
 find_transition_strengths.py
-*.json
-*.csv
-*.md
-analysis_output/
 .planning/
 logs/
 scripts/
@@ -21,10 +19,33 @@ tof_runs_delays/
 pb_detscan_runs/
 pb_powerscan_runs/
 all_drivers.log
-*.pdf
 manual/*
 !manual/user_manual.pdf
-references/
-util/ag_pohl*
-util/diagonalizer*
-util/benchmarking
+
+# Simulation output and generated tables
+/simulation_results
+/interaction_tables/
+
+# Data lives in ../mot-data; these names may be symlinks to it (no trailing slash: a symlink is not a directory)
+/analysis_output
+/references
+/paper
+/slides
+/ablation_results
+/power scan
+/duration scan
+/*.csv
+/field_grids/*
+!/field_grids/dipolebar_grid.npz
+/setup parameters/*
+!/setup parameters/AG_Pohl_Setup.json
+!/setup parameters/Hammel_Setup.json
+!/setup parameters/Tiecke_Setup.json
+/starting condition samples/*
+!/starting condition samples/553K Oven.csv
+!/starting condition samples/623K Oven.csv
+!/starting condition samples/672K Oven.csv
+
+# Local-only files
+/CLAUDE.md
+/ruff.toml
