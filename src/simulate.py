@@ -6,6 +6,7 @@ from numba import get_num_threads, njit
 from src.absorption_and_emission_process import (
     absorption_and_emission_default_timestep,
 )
+from src.modulation import laser_factors
 from util.simulation_typing import (
     ECSAtoms,
     ECSLasers,
@@ -35,6 +36,8 @@ class Simulation:
         voxel_size: float = 1e-5,
         laser_t_on: np.ndarray = None,
         laser_t_off: np.ndarray = None,
+        modulations: list = None,
+        laser_modulation: np.ndarray = None,
     ):
 
         # setup objects
@@ -72,6 +75,17 @@ class Simulation:
         ).astype(np.int64)
         self._base_beam_powers = lasers.beam_powers.copy()
         self._base_intensities = lasers.initial_intensities.copy()
+        # Per-step power factor of every laser: gate x modulation map.
+        self.laser_factor = laser_factors(
+            max_step_number + 1,
+            default_timestep,
+            self.laser_on_step,
+            self.laser_off_step,
+            modulations or [],
+            laser_modulation
+            if laser_modulation is not None
+            else np.full(n_lasers, -1),
+        )
 
         # Counter for absorption/emission events for each atom.
         self.excitation_counter = np.zeros(
@@ -154,15 +168,11 @@ class Simulation:
                 self.excitation_hist,
             )
 
-        # 2) Apply laser active intervals: zero inactive beams, restore active ones.
+        # 2) Laser power factors (t_on/t_off gate x modulation map).
         # Idempotent each step, so this stays correct across checkpoint resume.
-        active = (self.laser_on_step <= i) & (i < self.laser_off_step)
-        self.lasers.beam_powers[:] = np.where(
-            active, self._base_beam_powers, 0.0
-        )
-        self.lasers.initial_intensities[:] = np.where(
-            active, self._base_intensities, 0.0
-        )
+        f = self.laser_factor[min(i, len(self.laser_factor) - 1)]
+        self.lasers.beam_powers[:] = self._base_beam_powers * f
+        self.lasers.initial_intensities[:] = self._base_intensities * f
 
         # 3) Do physics
         absorption_and_emission_default_timestep(

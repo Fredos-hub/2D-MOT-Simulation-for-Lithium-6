@@ -316,6 +316,29 @@
           "detuning": { "type": "number", "default": -7.5 },
           "handedness": { "type": "integer", "enum": [-1,0, 1], "default": 1 },
           "t_on": { "type": "number", "minimum": 0, "default": 0.0 },
+          "t_off": { "type": ["number", "null"], "minimum": 0, "default": null },
+          "modulation": { "type": ["string", "null"], "default": null }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "Modulations": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["name", "frequency", "plateau_width"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "shape": { "type": "string", "enum": ["square"], "default": "square" },
+          "frequency": { "type": "number", "exclusiveMinimum": 0 },
+          "plateau_width": { "type": "number", "exclusiveMinimum": 0 },
+          "min": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.0 },
+          "max": { "type": "number", "minimum": 0, "maximum": 1, "default": 1.0 },
+          "phase": { "type": "number", "default": 0.0 },
+          "rest": { "type": "number", "minimum": 0, "maximum": 1, "default": 1.0 },
+          "t_on": { "type": "number", "minimum": 0, "default": 0.0 },
           "t_off": { "type": ["number", "null"], "minimum": 0, "default": null }
         },
         "additionalProperties": false

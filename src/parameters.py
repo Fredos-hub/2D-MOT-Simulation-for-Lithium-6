@@ -42,6 +42,7 @@ from src.magnetic_field import (
     IdealQuadrupoleField,
     ZeemanField,
 )
+from src.modulation import validate as validate_modulation
 from src.simulate import Simulation
 from util.simulation_typing import ECSAtoms, LightAtomInteraction
 
@@ -215,6 +216,7 @@ class Parameters:
             self._parse_simulation()
             self._parse_atoms()
             self._parse_magnetic_fields()
+            self._parse_modulations()
             self._parse_lasers()
             self._parse_boundaries()
         except Exception as exc:
@@ -351,6 +353,33 @@ class Parameters:
                 f"Unsupported magnetic field type: {self.magnetic_field_type}"
             )
 
+    def _parse_modulations(self) -> None:
+        """Power-modulation maps (optional section); times in s, Hz."""
+        self.modulations = []
+        for index, m in enumerate(self.parameters.get("Modulations", [])):
+            entry = {
+                "name": m["name"],
+                "shape": m.get("shape", "square"),
+                "frequency": float(m["frequency"]),
+                "plateau_width": float(m["plateau_width"]) * 1e-3,
+                "min": float(m.get("min", 0.0)),
+                "max": float(m.get("max", 1.0)),
+                "phase": float(m.get("phase", 0.0)),
+                "rest": float(m.get("rest", 1.0)),
+                "t_on": float(m.get("t_on", 0.0)) * 1e-3,
+                "t_off": float(m["t_off"]) * 1e-3
+                if m.get("t_off") is not None
+                else np.inf,
+            }
+            self.errors += [
+                f"Modulation #{index} ({entry['name']}): {e}"
+                for e in validate_modulation(entry)
+            ]
+            self.modulations.append(entry)
+        names = [m["name"] for m in self.modulations]
+        if len(set(names)) != len(names):
+            self.errors.append("Modulation names must be unique.")
+
     def _parse_lasers(self) -> None:
         lasers = self.parameters["Lasers"]
         parsed: list[dict[str, Any]] = []
@@ -373,14 +402,32 @@ class Parameters:
                     "t_off": float(laser["t_off"]) * 1e-3
                     if laser.get("t_off") is not None
                     else np.inf,
+                    "modulation": laser.get("modulation"),
                 }
             )
+        names = [m["name"] for m in self.modulations]
         for index, entry in enumerate(parsed):
             if entry["t_off"] <= entry["t_on"]:
                 self.errors.append(
                     f"Laser #{index}: t_off must be greater than t_on."
                 )
+            if entry["modulation"] not in (None, *names):
+                self.errors.append(
+                    f"Laser #{index}: unknown modulation "
+                    f"{entry['modulation']!r}."
+                )
         self.lasers = parsed
+
+    def _laser_modulation_index(self) -> np.ndarray:
+        """Index of each laser's map in self.modulations, -1 without one."""
+        names = [m["name"] for m in self.modulations]
+        return np.array(
+            [
+                names.index(l["modulation"]) if l["modulation"] else -1
+                for l in self.lasers
+            ],
+            dtype=np.int64,
+        )
 
     def _parse_boundaries(self) -> None:
         b = self.parameters["Boundaries"]
@@ -511,6 +558,8 @@ class Parameters:
                 laser_t_off=np.array(
                     [l["t_off"] for l in self.lasers], dtype=np.float64
                 ),
+                modulations=self.modulations,
+                laser_modulation=self._laser_modulation_index(),
             )
         except Exception as exc:
             msg = f"Failed to construct Simulation: {exc}"
